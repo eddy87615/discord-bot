@@ -1,0 +1,15 @@
+{
+  "name": "unified-discord-bot",
+  "version": "1.0.0",
+  "description": "boss-raid-bot + discord-game + discord-member-management 三合一",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.20.0",
+    "dotenv": "^16.5.0",
+    "express": "^4.18.0",
+    "node-cron": "^3.0.0"
+  }
+}
