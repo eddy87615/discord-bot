@@ -316,6 +316,20 @@ async function updateRaidMessage(channel, boss, newEntry) {
   return {};
 }
 
+// 清空所有 BOSS 報名資料，重置報名狀態，讓大家可以重新報名
+function clearRaidData() {
+  for (const key of Object.keys(raidData)) delete raidData[key];
+}
+
+// 管理員手動重置報名
+async function handleResetRaidCommand(interaction) {
+  clearRaidData();
+  await interaction.reply({
+    content: "✅ 已清空所有 BOSS 報名資料，大家可以重新報名了。",
+    flags: 64,
+  });
+}
+
 // ============================================================================
 // [GAME] 求籤 / 同性戀指數 共用
 // ============================================================================
@@ -1290,6 +1304,9 @@ const commands = [
     .addStringOption((o) =>
       o.setName("content").setDescription("置底訊息內容").setRequired(true)
     ),
+  new SlashCommandBuilder()
+    .setName("重置報名")
+    .setDescription("清空所有 BOSS 報名資料，讓大家可以重新報名（管理員）"),
 
   // ---- GAME (中文) ----
   new SlashCommandBuilder()
@@ -1424,6 +1441,7 @@ const ADMIN_COMMANDS = new Set([
   "ban",
   "mute",
   "unmute",
+  "重置報名",
 ]);
 
 // ============================================================================
@@ -1436,11 +1454,6 @@ function startKeepAliveServer() {
   app.listen(PORT, () =>
     console.log(`Keep-alive server running on port ${PORT}`)
   );
-  const SELF_URL =
-    process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
-  setInterval(() => {
-    fetch(SELF_URL).catch(() => {});
-  }, 14 * 60 * 1000);
 }
 
 // ============================================================================
@@ -1469,21 +1482,25 @@ client.once("ready", async () => {
   cron.schedule(
     "0 0 * * 4",
     async () => {
-      console.log("週四重置：移除所有 BOSS 身分組");
-      for (const guild of client.guilds.cache.values()) {
-        for (const boss of BOSSES) {
-          const role = guild.roles.cache.find((r) => r.name === boss.name);
-          if (!role) continue;
-          const members = await guild.members.fetch();
-          for (const member of members.values()) {
-            if (member.roles.cache.has(role.id)) {
-              await member.roles.remove(role).catch(() => {});
+      console.log("週四重置：清空報名資料並移除所有 BOSS 身分組");
+      // 先清報名資料，確保就算後面移除身分組出錯，報名狀態也已重置、不會卡住
+      clearRaidData();
+      try {
+        for (const guild of client.guilds.cache.values()) {
+          for (const boss of BOSSES) {
+            const role = guild.roles.cache.find((r) => r.name === boss.name);
+            if (!role) continue;
+            const members = await guild.members.fetch();
+            for (const member of members.values()) {
+              if (member.roles.cache.has(role.id)) {
+                await member.roles.remove(role).catch(() => {});
+              }
             }
           }
         }
+      } catch (err) {
+        console.error("週四移除身分組時出錯:", err);
       }
-      // 同步清空記憶體中的報名資料
-      for (const key of Object.keys(raidData)) delete raidData[key];
     },
     { timezone: "Asia/Taipei" }
   );
@@ -1733,6 +1750,8 @@ client.on("interactionCreate", async (interaction) => {
         return await handleMarriageCommand(interaction);
       case "divorce":
         return await handleDivorceCommand(interaction);
+      case "重置報名":
+        return await handleResetRaidCommand(interaction);
     }
   } catch (error) {
     console.error("處理 interaction 時出錯:", error);

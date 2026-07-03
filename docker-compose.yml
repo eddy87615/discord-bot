@@ -1,0 +1,15 @@
+services:
+  bot:
+    build: .
+    container_name: discord-bot
+    restart: unless-stopped          # 當機或主機重開會自動重啟
+    env_file: .env                   # 從 .env 讀 TOKEN / ADMIN_ROLE_ID 等
+    ports:
+      - "3000:3000"                  # 對外的 keep-alive port，用不到可整段刪掉
+    volumes:
+      # 把狀態 JSON 檔掛到主機，容器重建也不會遺失資料
+      - ./warnings.json:/app/warnings.json
+      - ./marriages.json:/app/marriages.json
+      - ./proposals.json:/app/proposals.json
+      - ./divorces.json:/app/divorces.json
+      - ./muted_members.json:/app/muted_members.json
