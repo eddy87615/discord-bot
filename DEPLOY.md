@@ -27,6 +27,19 @@
 
    > ⚠️ `.env` 不會被打包進映像檔，token 不會外洩，放心填。
 
+3. **Discord 後台設定（第一次一定要做，否則 bot 起不來或功能失效）**
+
+   到 [Discord Developer Portal](https://discord.com/developers/applications) → 你的 App：
+
+   - **Bot 頁 → Privileged Gateway Intents**：打開這兩個並儲存
+     - ✅ Server Members Intent
+     - ✅ Message Content Intent
+     - （沒開會出現 `Used disallowed intents`，bot 一直重啟失敗）
+   - **權限**：bot 的身分組要有以下權限（尤其 `管理頻道`、`管理身分組`）
+     - 管理頻道（建立/刪除遠征頻道）、管理身分組、踢出成員、封鎖成員、禁言成員
+     - 管理訊息、發送訊息、嵌入連結、新增反應
+   - **身分組階層**：把 bot 的身分組拖到要管理的成員身分組**上面**，否則踢人/管理頻道會失敗
+
 ---
 
 ## 二、啟動機器人
@@ -95,8 +108,43 @@ docker compose logs -f
 
 ---
 
-## 七、遇到問題？
+## 七、指令一覽
+
+**遠征報名**
+| 指令 | 說明 | 誰能用 |
+|------|------|--------|
+| `/遠征面板` | 發送建立遠征隊的面板，成員點王→輸入時間→管理員審核→自動開報名頻道 | 管理員 |
+
+> 遠征頻道會自動歸在「🐲遠征報名區」分類底下，**每週四 00:00 整批刪除重置**。頻道建好後 bot 會自動貼上報名格式範本並釘選。
+
+**會員管理**（都需要管理身分組）
+| 指令 | 說明 |
+|------|------|
+| `/warn` | 警告成員（累積到門檻自動禁言/踢/ban） |
+| `/check_warn` | 查看警告紀錄 |
+| `/delete_warn` | 刪除某一筆警告 |
+| `/clear_all_warn` | 清除某人所有警告 |
+| `/kick` `/ban` `/mute` `/unmute` | 踢出 / 封鎖 / 禁言 / 解除禁言 |
+
+**遊戲 / 娛樂**
+| 指令 | 說明 |
+|------|------|
+| `/同性戀指數` `/每日排行` `/統計` | 娛樂指數與排行 |
+| `/本日運勢` `/猜數字` `/幫助` | 求籤 / 猜數字 / 使用說明 |
+
+**其他**
+| 指令 | 說明 |
+|------|------|
+| `/propose` `/marriage` `/divorce` | 求婚 / 查看婚姻 / 離婚 |
+| `/pin` | 設定此頻道的置底訊息 |
+
+---
+
+## 八、遇到問題？
 
 - **機器人沒上線**：先看 `docker compose logs -f`，通常是 `TOKEN` 填錯或沒填。
+- **`Used disallowed intents`（一直重啟）**：到 Developer Portal 打開 Server Members + Message Content 兩個 intent（見第一節）。
+- **`Interaction has already been acknowledged`（40060）**：同一個 token 有兩台在跑（例如電腦和 mini 都開著），停掉一台，只留一台。
+- **建立頻道 / 踢人失敗（Missing Permissions 50013）**：bot 缺權限或身分組階層太低，補上權限並把 bot 身分組拖高。
 - **改了程式碼沒生效**：記得加 `--build` 重新建置。
 - **port 被佔用**：把 `docker-compose.yml` 裡 `ports:` 那兩行刪掉（自己掛著跑用不到對外 port）。

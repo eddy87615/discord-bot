@@ -298,7 +298,7 @@ async function createExpeditionChannel(guild, boss, date, time) {
   // Discord 頻道名不允許冒號，時間去掉冒號；完整可讀時間放進頻道主題
   const safeTime = time.replace(/:/g, '');
   const channel = await guild.channels.create({
-    name: `${date}-${safeTime}-${boss.name}`,
+    name: `${date}-${safeTime}-${boss.name}遠征報名區`,
     type: ChannelType.GuildText,
     parent: category.id,
     topic: `${boss.emoji} ${boss.name}　${date} ${time}　遠征報名區`,
