@@ -23,7 +23,6 @@ const {
 } = require('discord.js');
 const fs = require('fs');
 const express = require('express');
-const cron = require('node-cron');
 
 // ============================================================================
 // 環境變數
@@ -65,8 +64,12 @@ const BOSSES = [
   { id: 'ephenia', name: '艾畢奈雅', emoji: '🧚' },
 ];
 
-// 動態遠征頻道統一歸在這個分類底下，週四整批刪除
+// 動態遠征頻道統一歸在這個分類底下
 const EXPEDITION_CATEGORY = '🐲遠征報名區';
+// 「遠征結束了嗎？」提示訊息的識別字串（用來避免重複詢問）
+const END_PROMPT_MARKER = '🏁 遠征時間已到';
+// 遠征時間以固定時區解讀，不依賴容器時區。台灣=8，日本=9
+const EXPEDITION_TZ_OFFSET = 8;
 const pinnedMessageMap = {};
 
 // ============================================================================
@@ -293,7 +296,7 @@ async function getOrCreateExpeditionCategory(guild) {
 }
 
 // 依王 + 日期 + 時間建立一個報名頻道
-async function createExpeditionChannel(guild, boss, date, time) {
+async function createExpeditionChannel(guild, boss, date, time, creatorId) {
   const category = await getOrCreateExpeditionCategory(guild);
   // Discord 頻道名不允許冒號，時間去掉冒號；完整可讀時間放進頻道主題
   const safeTime = time.replace(/:/g, '');
@@ -301,35 +304,141 @@ async function createExpeditionChannel(guild, boss, date, time) {
     name: `${date}-${safeTime}-${boss.name}遠征報名區`,
     type: ChannelType.GuildText,
     parent: category.id,
-    topic: `${boss.emoji} ${boss.name}　${date} ${time}　遠征報名區`,
+    topic: `${boss.emoji} ${boss.name}　${date} ${time}　遠征報名區　團長:${creatorId}`,
   });
 
-  // 在頻道貼上報名格式範本，並釘選在頂端方便大家複製
-  const formatMessage = await channel.send(
-    `${boss.emoji} **${boss.name} 遠征報名**　🕐 ${date} ${time}\n` +
+  // 報名格式範本 +「結束遠征」按鈕（建立者 ID 藏在 customId，只有本人或管理員能按），釘選在頂端
+  const endRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`exp_end~${creatorId}`)
+      .setLabel('🏁 結束遠征')
+      .setStyle(ButtonStyle.Danger),
+  );
+  const formatMessage = await channel.send({
+    content:
+      `${boss.emoji} **${boss.name} 遠征報名**　🕐 ${date} ${time}\n` +
       '公會/非公會都可以報名參加\n' +
       '請依照格式留言：ID+等級+職業\n' +
       '報名後請該團人員【自行找人】及【討論時間】喔！\n' +
       '\n1. 角色名稱 / 等級 / 職業\n2. 角色名稱 / 等級 / 職業\n3. 角色名稱 / 等級 / 職業\n...',
-  );
+    components: [endRow],
+  });
   await formatMessage.pin().catch(() => {});
 
   return channel;
 }
 
-// 刪除遠征分類底下所有頻道（保留分類本身，供下週重用）
-async function deleteExpeditionChannels() {
+// 從頻道名稱 MMDD-HHMM- 解析出遠征日期時間（回傳 Date 或 null）
+function parseExpeditionDateTime(name) {
+  const m = name.match(/^(\d{2})(\d{2})-(\d{2})(\d{2})-/);
+  if (!m) return null;
+  const [, mm, dd, HH, MM] = m;
+  const now = new Date();
+  // 以固定時區 UTC+EXPEDITION_TZ_OFFSET 解讀輸入時間，換算成絕對時間點
+  const build = (y) =>
+    new Date(
+      Date.UTC(y, Number(mm) - 1, Number(dd), Number(HH), Number(MM)) -
+        EXPEDITION_TZ_OFFSET * 3600 * 1000,
+    );
+  let dt = build(now.getUTCFullYear());
+  // 跨年處理：算出來離現在太遠，就往前/後推一年
+  const diffDays = (dt - now) / 86400000;
+  if (diffDays > 180) dt = build(now.getUTCFullYear() - 1);
+  else if (diffDays < -180) dt = build(now.getUTCFullYear() + 1);
+  return dt;
+}
+
+// 讀取頻道的遠征團團長 ID（存在頻道 topic 的「團長:ID」標記裡）
+function getExpeditionLeaderId(channel) {
+  const m = (channel.topic || '').match(/團長:(\d+)/);
+  return m ? m[1] : null;
+}
+
+// 執行結束遠征：回覆後刪除頻道
+async function endExpedition(interaction) {
+  const channel = interaction.channel;
+  await interaction
+    .reply({ content: '✅ 遠征結束，頻道將在 5 秒後刪除。' })
+    .catch(() => {});
+  setTimeout(() => channel.delete().catch(() => {}), 5000);
+}
+
+// 按「結束遠征」/「是，結束遠征」→ 限團長本人或管理員
+async function handleEndExpeditionButton(interaction, leaderId) {
+  const isLeader = leaderId && interaction.user.id === leaderId;
+  if (!isLeader && !isAdmin(interaction.member)) {
+    await interaction.reply({
+      content: '❌ 只有這個遠征團的團長或管理員可以結束遠征。',
+      flags: 64,
+    });
+    return;
+  }
+  await endExpedition(interaction);
+}
+
+// 按「還沒，先留著」→ 收起按鈕，之後不再自動詢問（保留識別字避免重複詢問）
+async function handleEndConfirmNo(interaction) {
+  await interaction.update({
+    content: `${END_PROMPT_MARKER}（已標記稍後再結束，需要時可用上方「🏁 結束遠征」按鈕或 /結束遠征）`,
+    components: [],
+  });
+}
+
+// /結束遠征 指令：限遠征頻道內、且為團長或管理員
+async function handleEndExpeditionCommand(interaction) {
+  const channel = interaction.channel;
+  if (!channel.parent || channel.parent.name !== EXPEDITION_CATEGORY) {
+    await interaction.reply({
+      content: '❌ 這個指令只能在遠征報名頻道裡使用。',
+      flags: 64,
+    });
+    return;
+  }
+  const leaderId = await getExpeditionLeaderId(channel);
+  await handleEndExpeditionButton(interaction, leaderId);
+}
+
+// 定時掃描：遠征時間已過的頻道，貼一次「遠征結束了嗎？」提示
+async function scanExpeditions() {
+  const now = new Date();
   for (const guild of client.guilds.cache.values()) {
     const category = guild.channels.cache.find(
       (c) =>
         c.type === ChannelType.GuildCategory && c.name === EXPEDITION_CATEGORY,
     );
     if (!category) continue;
-    const children = guild.channels.cache.filter(
-      (c) => c.parentId === category.id,
+    const channels = guild.channels.cache.filter(
+      (c) => c.parentId === category.id && c.type === ChannelType.GuildText,
     );
-    for (const ch of children.values()) {
-      await ch.delete().catch(() => {});
+    for (const ch of channels.values()) {
+      const dt = parseExpeditionDateTime(ch.name);
+      if (!dt || now < dt) continue; // 還沒到遠征時間
+      // 避免重複詢問：最近訊息裡已有提示就跳過
+      const recent = await ch.messages.fetch({ limit: 15 }).catch(() => null);
+      if (!recent) continue;
+      const already = recent.some(
+        (m) =>
+          m.author.id === client.user.id &&
+          m.content.includes(END_PROMPT_MARKER),
+      );
+      if (already) continue;
+      const leaderId = await getExpeditionLeaderId(ch);
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`exp_endok~${leaderId || '0'}`)
+          .setLabel('✅ 是，結束遠征')
+          .setStyle(ButtonStyle.Success),
+        new ButtonBuilder()
+          .setCustomId('exp_endno')
+          .setLabel('還沒，先留著')
+          .setStyle(ButtonStyle.Secondary),
+      );
+      await ch
+        .send({
+          content: `${END_PROMPT_MARKER}\n團長或管理員，這團打完了嗎？打完可以按「是，結束遠征」關閉頻道。`,
+          components: [row],
+        })
+        .catch(() => {});
     }
   }
 }
@@ -390,15 +499,28 @@ async function handleExpeditionBossButton(interaction, bossId) {
 async function handleExpeditionTimeModal(interaction, bossId) {
   const boss = BOSSES.find((b) => b.id === bossId);
   if (!boss) return;
-  // 去掉分隔符號 ~，避免破壞 customId 解析
-  const date = interaction.fields
-    .getTextInputValue('exp_date')
-    .trim()
-    .replace(/~/g, '');
-  const time = interaction.fields
-    .getTextInputValue('exp_time')
-    .trim()
-    .replace(/~/g, '');
+  const date = interaction.fields.getTextInputValue('exp_date').trim();
+  const rawTime = interaction.fields.getTextInputValue('exp_time').trim();
+
+  // 強制格式：日期必須 MMDD（4 位數）、時間必須 HH:MM
+  if (!/^\d{4}$/.test(date)) {
+    await interaction.reply({
+      content: '❌ 日期格式錯誤，請用 4 位數 MMDD，例如 0706。',
+      flags: 64,
+    });
+    return;
+  }
+  const tm = rawTime.match(/^(\d{1,2}):(\d{2})$/);
+  if (!tm || Number(tm[1]) > 23 || Number(tm[2]) > 59) {
+    await interaction.reply({
+      content:
+        '❌ 時間格式錯誤，請用 24 小時制 HH:MM（00:00～23:59），午夜請打 00:00。',
+      flags: 64,
+    });
+    return;
+  }
+  const time = `${tm[1].padStart(2, '0')}:${tm[2]}`;
+  const creatorId = interaction.user.id;
 
   const embed = new EmbedBuilder()
     .setTitle('📋 遠征隊申請（待管理員審核）')
@@ -407,11 +529,11 @@ async function handleExpeditionTimeModal(interaction, bossId) {
       { name: '王', value: `${boss.emoji} ${boss.name}`, inline: true },
       { name: '日期', value: date, inline: true },
       { name: '時間', value: time, inline: true },
-      { name: '申請人', value: `<@${interaction.user.id}>` },
+      { name: '申請人', value: `<@${creatorId}>` },
     );
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
-      .setCustomId(`exp_ok~${bossId}~${date}~${time}`)
+      .setCustomId(`exp_ok~${bossId}~${date}~${time}~${creatorId}`)
       .setLabel('✅ 同意')
       .setStyle(ButtonStyle.Success),
     new ButtonBuilder()
@@ -443,8 +565,8 @@ async function handleExpeditionApproval(interaction, customId) {
     return;
   }
 
-  // exp_ok~bossId~date~time
-  const [, bossId, date, time] = customId.split('~');
+  // exp_ok~bossId~date~time~creatorId
+  const [, bossId, date, time, creatorId] = customId.split('~');
   const boss = BOSSES.find((b) => b.id === bossId);
   if (!boss) {
     await interaction.reply({ content: '❌ 找不到對應的王。', flags: 64 });
@@ -457,6 +579,7 @@ async function handleExpeditionApproval(interaction, customId) {
       boss,
       date,
       time,
+      creatorId,
     );
     await interaction.update({
       content: `✅ 已由 <@${interaction.user.id}> 核准，已建立報名頻道：${channel}`,
@@ -1460,6 +1583,9 @@ const commands = [
   new SlashCommandBuilder()
     .setName('遠征面板')
     .setDescription('發送建立遠征隊的面板（管理員）'),
+  new SlashCommandBuilder()
+    .setName('結束遠征')
+    .setDescription('結束目前這個遠征頻道並刪除（限團長或管理員）'),
 
   // ---- GAME (中文) ----
   new SlashCommandBuilder()
@@ -1633,19 +1759,9 @@ client.once('ready', async () => {
     console.error('❌ 註冊指令失敗:', error);
   }
 
-  // 週四 00:00 刪除所有動態遠征頻道
-  cron.schedule(
-    '0 0 * * 4',
-    async () => {
-      console.log('週四重置：刪除所有動態遠征頻道');
-      try {
-        await deleteExpeditionChannels();
-      } catch (err) {
-        console.error('週四刪除遠征頻道時出錯:', err);
-      }
-    },
-    { timezone: 'Asia/Taipei' },
-  );
+  // 每 5 分鐘掃描：遠征時間已過的頻道，貼「遠征結束了嗎？」提示（只貼一次）
+  scanExpeditions().catch(() => {});
+  setInterval(() => scanExpeditions().catch(() => {}), 5 * 60 * 1000);
 
   // 定期清理
   setInterval(
@@ -1693,6 +1809,19 @@ client.on('interactionCreate', async (interaction) => {
       // 遠征：管理員審核按鈕
       if (customId.startsWith('exp_ok~') || customId.startsWith('exp_no~')) {
         await handleExpeditionApproval(interaction, customId);
+        return;
+      }
+      // 遠征：結束遠征（手動按鈕 或 當天確認的「是」）
+      if (
+        customId.startsWith('exp_end~') ||
+        customId.startsWith('exp_endok~')
+      ) {
+        await handleEndExpeditionButton(interaction, customId.split('~')[1]);
+        return;
+      }
+      // 遠征：當天確認的「還沒」
+      if (customId === 'exp_endno') {
+        await handleEndConfirmNo(interaction);
         return;
       }
       return;
@@ -1787,6 +1916,8 @@ client.on('interactionCreate', async (interaction) => {
         return await handleDivorceCommand(interaction);
       case '遠征面板':
         return await handleExpeditionPanel(interaction);
+      case '結束遠征':
+        return await handleEndExpeditionCommand(interaction);
     }
   } catch (error) {
     console.error('處理 interaction 時出錯:', error);
