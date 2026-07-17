@@ -413,6 +413,23 @@ async function scanExpeditions() {
     for (const ch of channels.values()) {
       const dt = parseExpeditionDateTime(ch.name);
       if (!dt || now < dt) continue; // 還沒到遠征時間
+      // 三天沒活動提醒
+const messages = await ch.messages.fetch({ limit: 1 }).catch(() => null);
+if (messages && messages.size > 0) {
+  const lastMessage = messages.first();
+  const daysSinceLastMessage = (now - lastMessage.createdTimestamp) / (1000 * 60 * 60 * 24);
+  if (daysSinceLastMessage >= 3) {
+    const alreadyNotified = await ch.messages.fetch({ limit: 20 }).catch(() => null);
+    const hasNotice = alreadyNotified?.some(
+      m => m.author.id === client.user.id && m.content.includes('⏰ 遠征提醒')
+    );
+    if (!hasNotice) {
+      await ch.send(
+        `⏰ **遠征提醒**\n想健太了嗎❤️？\n大家別忘了確認遠征時間，記得提早做好準備喔！`
+      ).catch(() => {});
+    }
+  }
+}
       // 避免重複詢問：最近訊息裡已有提示就跳過
       const recent = await ch.messages.fetch({ limit: 15 }).catch(() => null);
       if (!recent) continue;
