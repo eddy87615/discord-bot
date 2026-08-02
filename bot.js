@@ -358,6 +358,9 @@ async function createExpeditionChannel(guild, boss, date, time, creatorId) {
   });
   await formatMessage.pin().catch(() => {});
 
+  // 依日期升冪重排，新頻道會插到正確位置而不是被丟到最下面
+  await sortExpeditionChannels(guild).catch(() => {});
+
   return channel;
 }
 
@@ -379,6 +382,40 @@ function parseExpeditionDateTime(name) {
   if (diffDays > 180) dt = build(now.getUTCFullYear() - 1);
   else if (diffDays < -180) dt = build(now.getUTCFullYear() + 1);
   return dt;
+}
+
+// 把遠征分類底下的頻道，依遠征日期時間「由早到晚（升冪）」重新排序
+async function sortExpeditionChannels(guild) {
+  const category = guild.channels.cache.find(
+    (c) =>
+      c.type === ChannelType.GuildCategory && c.name === EXPEDITION_CATEGORY,
+  );
+  if (!category) return;
+  const channels = [
+    ...guild.channels.cache
+      .filter(
+        (c) => c.parentId === category.id && c.type === ChannelType.GuildText,
+      )
+      .values(),
+  ];
+  if (channels.length < 2) return;
+  // 依解析出的遠征時間升冪；無法解析日期的頻道排到最後、維持原本相對順序
+  channels.sort((a, b) => {
+    const da = parseExpeditionDateTime(a.name);
+    const db = parseExpeditionDateTime(b.name);
+    if (!da && !db) return a.position - b.position;
+    if (!da) return 1;
+    if (!db) return -1;
+    return da - db;
+  });
+  // 目前位置已經是升冪就不用打 API（避免每次都送請求）
+  const alreadySorted = channels.every(
+    (ch, i) => i === 0 || channels[i - 1].position <= ch.position,
+  );
+  if (alreadySorted) return;
+  await guild.channels
+    .setPositions(channels.map((ch, i) => ({ channel: ch.id, position: i })))
+    .catch((e) => console.error('重排遠征頻道失敗:', e.message));
 }
 
 // 讀取頻道的遠征團團長 ID（存在頻道 topic 的「團長:ID」標記裡）
@@ -557,6 +594,9 @@ async function handleExpeditionEditTimeModal(interaction) {
   try {
     await channel.setName(buildExpeditionChannelName(boss, date, time));
     await channel.setTopic(buildExpeditionTopic(boss, date, time, leaderId));
+
+    // 時間變了 → 依日期升冪重排頻道位置
+    await sortExpeditionChannels(channel.guild).catch(() => {});
 
     // 更新置頂範本訊息（含控制按鈕）
     const pinned = await channel.messages.fetchPinned().catch(() => null);
@@ -779,6 +819,8 @@ async function scanExpeditions() {
         c.type === ChannelType.GuildCategory && c.name === EXPEDITION_CATEGORY,
     );
     if (!category) continue;
+    // 自我修復：確保頻道依日期升冪排列（順序已正確時不會打 API）
+    await sortExpeditionChannels(guild).catch(() => {});
     const channels = guild.channels.cache.filter(
       (c) => c.parentId === category.id && c.type === ChannelType.GuildText,
     );
