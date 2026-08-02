@@ -747,6 +747,29 @@ async function maybeSendExpeditionReminder(channel, dt, now) {
   saveExpeditionMembers();
 }
 
+// 頻道超過三天沒人講話 → 貼一次「想健太了嗎」提醒（貼完自己就是最新訊息，之後三天內不會再貼）
+const INACTIVITY_MARKER = '想健太了嗎';
+async function maybeSendInactivityReminder(channel, now) {
+  const messages = await channel.messages.fetch({ limit: 1 }).catch(() => null);
+  if (!messages || messages.size === 0) return;
+  const lastMessage = messages.first();
+  const daysSinceLast =
+    (now - lastMessage.createdTimestamp) / (1000 * 60 * 60 * 24);
+  if (daysSinceLast < 3) return;
+  // 最近訊息裡已經貼過就跳過（用獨有字串判斷，避免和「前一天提醒」混淆）
+  const recent = await channel.messages.fetch({ limit: 20 }).catch(() => null);
+  const already = recent?.some(
+    (m) =>
+      m.author.id === client.user.id && m.content.includes(INACTIVITY_MARKER),
+  );
+  if (already) return;
+  await channel
+    .send(
+      '⏰ **遠征提醒**\n想健太了嗎❤️？\n大家別忘了確認遠征時間，記得提早做好準備喔！',
+    )
+    .catch(() => {});
+}
+
 // 定時掃描：遠征時間已過的頻道，貼一次「遠征結束了嗎？」提示
 async function scanExpeditions() {
   const now = new Date();
@@ -762,6 +785,8 @@ async function scanExpeditions() {
     for (const ch of channels.values()) {
       const dt = parseExpeditionDateTime(ch.name);
       if (!dt) continue;
+      // 頻道三天沒人講話 → 提醒（對所有遠征頻道都生效）
+      await maybeSendInactivityReminder(ch, now);
       // 遠征前一天，自動 tag 已確認團員提醒
       await maybeSendExpeditionReminder(ch, dt, now);
       if (now < dt) continue; // 還沒到遠征時間，先不貼結束提示
