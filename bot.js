@@ -4,7 +4,7 @@
 // 三合一，共用同一個 Discord Application / token
 // ============================================================================
 
-require('dotenv').config();
+require("dotenv").config();
 
 const {
   Client,
@@ -21,22 +21,22 @@ const {
   PermissionFlagsBits,
   AttachmentBuilder,
   ChannelType,
-} = require('discord.js');
-const fs = require('fs');
-const express = require('express');
+} = require("discord.js");
+const fs = require("fs");
+const express = require("express");
 
 // ============================================================================
 // 環境變數
 // ============================================================================
 const TOKEN = process.env.TOKEN || process.env.BOT_TOKEN;
 if (!TOKEN) {
-  console.error('❌ 環境變數 TOKEN 未設定');
+  console.error("❌ 環境變數 TOKEN 未設定");
   process.exit(1);
 }
 
 const config = {
   token: TOKEN,
-  adminRoleId: process.env.ADMIN_ROLE_ID || '',
+  adminRoleId: process.env.ADMIN_ROLE_ID || "",
   warningThresholds: { mute: 3, kick: 5, ban: 7 },
   muteDuration: 24 * 60 * 60 * 1000,
 };
@@ -58,17 +58,17 @@ const client = new Client({
 // [BOSS RAID] 設定與狀態
 // ============================================================================
 const BOSSES = [
-  { id: 'papulatus', name: '拉圖斯', emoji: '⏰' },
-  { id: 'hard_papulatus', name: '困難拉圖斯', emoji: '⏰' },
-  { id: 'zakum', name: '殘暴炎魔', emoji: '🔥' },
-  { id: 'horntail', name: '暗黑龍王', emoji: '🐲' },
-  { id: 'ephenia', name: '艾畢奈雅', emoji: '🧚' },
+  { id: "papulatus", name: "拉圖斯", emoji: "⏰" },
+  { id: "hard_papulatus", name: "困難拉圖斯", emoji: "⏰" },
+  { id: "zakum", name: "殘暴炎魔", emoji: "🔥" },
+  { id: "horntail", name: "暗黑龍王", emoji: "🐲" },
+  { id: "ephenia", name: "艾畢奈雅", emoji: "🧚" },
 ];
 
 // 動態遠征頻道統一歸在這個分類底下
-const EXPEDITION_CATEGORY = '🐲遠征報名區';
+const EXPEDITION_CATEGORY = "🐲遠征報名區";
 // 「遠征結束了嗎？」提示訊息的識別字串（用來避免重複詢問）
-const END_PROMPT_MARKER = '🏁 遠征時間已到';
+const END_PROMPT_MARKER = "🏁 遠征時間已到";
 // 遠征時間以固定時區解讀，不依賴容器時區。台灣=8，日本=9
 const EXPEDITION_TZ_OFFSET = 8;
 const pinnedMessageMap = {};
@@ -87,7 +87,7 @@ let expeditionMembers = {};
 function loadJson(path) {
   try {
     if (fs.existsSync(path)) {
-      const data = fs.readFileSync(path, 'utf8');
+      const data = fs.readFileSync(path, "utf8");
       if (data.trim()) return JSON.parse(data);
     }
   } catch (error) {
@@ -104,9 +104,9 @@ function saveJson(path, obj) {
   }
 }
 
-const loadWarnings = () => (warningsData = loadJson('./warnings.json'));
+const loadWarnings = () => (warningsData = loadJson("./warnings.json"));
 function loadMarriages() {
-  marriageData = loadJson('./marriages.json');
+  marriageData = loadJson("./marriages.json");
   // 舊格式（一夫一妻）→ 新格式（配偶陣列）遷移
   for (const uid of Object.keys(marriageData)) {
     const v = marriageData[uid];
@@ -115,20 +115,20 @@ function loadMarriages() {
     }
   }
 }
-const loadProposals = () => (proposalData = loadJson('./proposals.json'));
-const loadDivorces = () => (divorceData = loadJson('./divorces.json'));
+const loadProposals = () => (proposalData = loadJson("./proposals.json"));
+const loadDivorces = () => (divorceData = loadJson("./divorces.json"));
 const loadMutedMembers = () =>
-  (mutedMembers = loadJson('./muted_members.json'));
+  (mutedMembers = loadJson("./muted_members.json"));
 const loadExpeditionMembers = () =>
-  (expeditionMembers = loadJson('./expedition_members.json'));
+  (expeditionMembers = loadJson("./expedition_members.json"));
 
-const saveWarnings = () => saveJson('./warnings.json', warningsData);
-const saveMarriages = () => saveJson('./marriages.json', marriageData);
-const saveProposals = () => saveJson('./proposals.json', proposalData);
-const saveDivorces = () => saveJson('./divorces.json', divorceData);
-const saveMutedMembers = () => saveJson('./muted_members.json', mutedMembers);
+const saveWarnings = () => saveJson("./warnings.json", warningsData);
+const saveMarriages = () => saveJson("./marriages.json", marriageData);
+const saveProposals = () => saveJson("./proposals.json", proposalData);
+const saveDivorces = () => saveJson("./divorces.json", divorceData);
+const saveMutedMembers = () => saveJson("./muted_members.json", mutedMembers);
 const saveExpeditionMembers = () =>
-  saveJson('./expedition_members.json', expeditionMembers);
+  saveJson("./expedition_members.json", expeditionMembers);
 
 // ============================================================================
 // [MEMBER MANAGEMENT] 一般輔助
@@ -203,18 +203,18 @@ async function checkMutedMembers() {
         if (member && !member.isCommunicationDisabled()) {
           try {
             const dmEmbed = new EmbedBuilder()
-              .setColor('#32CD32')
-              .setTitle('🔊 禁言時間已到期')
+              .setColor("#32CD32")
+              .setTitle("🔊 禁言時間已到期")
               .setDescription(`你在 **${guild.name}** 的禁言時間已結束`)
               .addFields(
-                { name: '原禁言原因', value: muteData.reason },
-                { name: '禁言時長', value: `${muteData.duration}分鐘` },
+                { name: "原禁言原因", value: muteData.reason },
+                { name: "禁言時長", value: `${muteData.duration}分鐘` },
                 {
-                  name: '解除時間',
-                  value: new Date().toLocaleString('zh-TW'),
+                  name: "解除時間",
+                  value: new Date().toLocaleString("zh-TW"),
                 },
               )
-              .setFooter({ text: '歡迎回來！請繼續遵守伺服器規則～' });
+              .setFooter({ text: "歡迎回來！請繼續遵守伺服器規則～" });
             await member.user.send({ embeds: [dmEmbed] });
           } catch {}
         }
@@ -242,16 +242,16 @@ async function addWarning(user, moderator, reason, guild) {
 
   try {
     const dmEmbed = new EmbedBuilder()
-      .setColor('#FF6B6B')
-      .setTitle('⚠️ 警告通知')
+      .setColor("#FF6B6B")
+      .setTitle("⚠️ 警告通知")
       .setDescription(`你在 **${guild.name}** 收到了一個警告！`)
       .addFields(
-        { name: '警告原因', value: reason },
-        { name: '執行管理員', value: moderator.displayName },
-        { name: '當前警告次數', value: `${userData.count}次` },
-        { name: '時間', value: new Date().toLocaleString('zh-TW') },
+        { name: "警告原因", value: reason },
+        { name: "執行管理員", value: moderator.displayName },
+        { name: "當前警告次數", value: `${userData.count}次` },
+        { name: "時間", value: new Date().toLocaleString("zh-TW") },
       )
-      .setFooter({ text: '請遵守伺服器規則，避免進一步的處罰！霸脫霸脫～' });
+      .setFooter({ text: "請遵守伺服器規則，避免進一步的處罰！霸脫霸脫～" });
     await user.send({ embeds: [dmEmbed] });
   } catch {}
 
@@ -278,7 +278,7 @@ async function checkAutoActions(user, guild, count) {
       );
     }
   } catch (error) {
-    console.error('自動處罰失敗:', error.message);
+    console.error("自動處罰失敗:", error.message);
   }
 }
 
@@ -304,7 +304,7 @@ async function getOrCreateExpeditionCategory(guild) {
 
 // 依王 + 日期 + 時間組出頻道名稱（Discord 頻道名不允許冒號，時間去掉冒號）
 function buildExpeditionChannelName(boss, date, time) {
-  return `${date}-${time.replace(/:/g, '')}-${boss.name}遠征報名區`;
+  return `${date}-${time.replace(/:/g, "")}-${boss.name}遠征報名區`;
 }
 
 // 依王 + 日期 + 時間組出頻道主題（完整可讀時間 + 團長 ID）
@@ -316,1040 +316,900 @@ function buildExpeditionTopic(boss, date, time, leaderId) {
 function buildExpeditionFormatContent(boss, date, time) {
   return (
     `${boss.emoji} **${boss.name} 遠征報名**　🕐 ${date} ${time}\n` +
-    '公會/非公會都可以報名參加\n' +
-    '請依照格式留言：ID+等級+職業\n' +
-    '報名後請該團人員【自行找人】及【討論時間】喔！\n' +
-    '\n👉若有更改時間的需求，可以點擊【更改時間】的按鈕或是【/更改時間】的指令修改時間，頻道的名稱也會對應的做出改變\n👉若確認了出征團員，可以使用【確認團員】的按鈕或是【/確認團員】的指令，勾選參團的成員，在遠征前一天系統會標記通知成員\n👉遠征時間到，或跳出結束遠征的通知，可以使用【結束遠征】的按鈕或是【/結束遠征】的指令，用以刪除遠征頻道，以便做管理'
+    "公會/非公會都可以報名參加\n" +
+    "請依照格式留言：ID+等級+職業\n" +
+    "報名後請該團人員【自行找人】及【討論時間】喔！\n" +
+    "\n👉若有更改時間的需求，可以點擊【更改時間】的按鈕或是【/更改時間】的指令修改時間，頻道的名稱也會對應的做出改變\n👉若確認了出征團員，可以使用【確認團員】的按鈕或是【/確認團員】的指令，勾選參團的成員，在遠征前一天系統會標記通知成員\n👉遠征時間到，或跳出結束遠征的通知，可以使用【結束遠征】的按鈕或是【/結束遠征】的指令，用以刪除遠征頻道，以便做管理"
   );
+}
 
-  // 置頂訊息上的控制按鈕（更改時間 / 結束遠征），creatorId 藏在 customId，只有團長本人或管理員能按
-  function buildExpeditionControlRow(creatorId) {
-    return new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId(`exp_members~${creatorId}`)
-        .setLabel('✅ 確認團員')
-        .setStyle(ButtonStyle.Success),
-      new ButtonBuilder()
-        .setCustomId(`exp_edit~${creatorId}`)
-        .setLabel('🕐 更改時間')
-        .setStyle(ButtonStyle.Primary),
-      new ButtonBuilder()
-        .setCustomId(`exp_end~${creatorId}`)
-        .setLabel('🏁 結束遠征')
-        .setStyle(ButtonStyle.Danger),
+// 置頂訊息上的控制按鈕（更改時間 / 結束遠征），creatorId 藏在 customId，只有團長本人或管理員能按
+function buildExpeditionControlRow(creatorId) {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`exp_members~${creatorId}`)
+      .setLabel("✅ 確認團員")
+      .setStyle(ButtonStyle.Success),
+    new ButtonBuilder()
+      .setCustomId(`exp_edit~${creatorId}`)
+      .setLabel("🕐 更改時間")
+      .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder()
+      .setCustomId(`exp_end~${creatorId}`)
+      .setLabel("🏁 結束遠征")
+      .setStyle(ButtonStyle.Danger),
+  );
+}
+
+// 依王 + 日期 + 時間建立一個報名頻道
+async function createExpeditionChannel(guild, boss, date, time, creatorId) {
+  const category = await getOrCreateExpeditionCategory(guild);
+  const channel = await guild.channels.create({
+    name: buildExpeditionChannelName(boss, date, time),
+    type: ChannelType.GuildText,
+    parent: category.id,
+    topic: buildExpeditionTopic(boss, date, time, creatorId),
+  });
+
+  // 報名格式範本 + 控制按鈕，釘選在頂端
+  const formatMessage = await channel.send({
+    content: buildExpeditionFormatContent(boss, date, time),
+    components: [buildExpeditionControlRow(creatorId)],
+  });
+  await formatMessage.pin().catch(() => {});
+
+  // 依日期升冪重排，新頻道會插到正確位置而不是被丟到最下面
+  await sortExpeditionChannels(guild).catch(() => {});
+
+  return channel;
+}
+
+// 從頻道名稱 MMDD-HHMM- 解析出遠征日期時間（回傳 Date 或 null）
+function parseExpeditionDateTime(name) {
+  const m = name.match(/^(\d{2})(\d{2})-(\d{2})(\d{2})-/);
+  if (!m) return null;
+  const [, mm, dd, HH, MM] = m;
+  const now = new Date();
+  // 以固定時區 UTC+EXPEDITION_TZ_OFFSET 解讀輸入時間，換算成絕對時間點
+  const build = (y) =>
+    new Date(
+      Date.UTC(y, Number(mm) - 1, Number(dd), Number(HH), Number(MM)) -
+        EXPEDITION_TZ_OFFSET * 3600 * 1000,
     );
+  let dt = build(now.getUTCFullYear());
+  // 跨年處理：算出來離現在太遠，就往前/後推一年
+  const diffDays = (dt - now) / 86400000;
+  if (diffDays > 180) dt = build(now.getUTCFullYear() - 1);
+  else if (diffDays < -180) dt = build(now.getUTCFullYear() + 1);
+  return dt;
+}
+
+// 把遠征分類底下的頻道，依遠征日期時間「由早到晚（升冪）」重新排序
+async function sortExpeditionChannels(guild) {
+  const category = guild.channels.cache.find(
+    (c) =>
+      c.type === ChannelType.GuildCategory && c.name === EXPEDITION_CATEGORY,
+  );
+  if (!category) return;
+  const channels = [
+    ...guild.channels.cache
+      .filter(
+        (c) => c.parentId === category.id && c.type === ChannelType.GuildText,
+      )
+      .values(),
+  ];
+  if (channels.length < 2) return;
+  // 依解析出的遠征時間升冪；無法解析日期的頻道排到最後、維持原本相對順序
+  channels.sort((a, b) => {
+    const da = parseExpeditionDateTime(a.name);
+    const db = parseExpeditionDateTime(b.name);
+    if (!da && !db) return a.position - b.position;
+    if (!da) return 1;
+    if (!db) return -1;
+    return da - db;
+  });
+  // 目前位置已經是升冪就不用打 API（避免每次都送請求）
+  const alreadySorted = channels.every(
+    (ch, i) => i === 0 || channels[i - 1].position <= ch.position,
+  );
+  if (alreadySorted) return;
+  await guild.channels
+    .setPositions(channels.map((ch, i) => ({ channel: ch.id, position: i })))
+    .catch((e) => console.error("重排遠征頻道失敗:", e.message));
+}
+
+// 讀取頻道的遠征團團長 ID（存在頻道 topic 的「團長:ID」標記裡）
+function getExpeditionLeaderId(channel) {
+  const m = (channel.topic || "").match(/團長:(\d+)/);
+  return m ? m[1] : null;
+}
+
+// 從頻道判斷是打哪隻王：優先用 topic 的「emoji 名稱　」比對（避免「拉圖斯/困難拉圖斯」互相誤判），
+// 再退回用頻道名稱做最長名稱比對
+function getExpeditionBoss(channel) {
+  const topic = channel.topic || "";
+  const byTopic = BOSSES.find((b) => topic.includes(`${b.emoji} ${b.name}　`));
+  if (byTopic) return byTopic;
+  const name = channel.name || "";
+  return (
+    [...BOSSES]
+      .sort((a, b) => b.name.length - a.name.length)
+      .find((b) => name.includes(b.name)) || null
+  );
+}
+
+// 驗證日期(MMDD) / 時間(HH:MM)，回傳 { ok, time } 或 { ok:false, error }
+function validateExpeditionDateTime(date, rawTime) {
+  if (!/^\d{4}$/.test(date)) {
+    return {
+      ok: false,
+      error: "❌ 日期格式錯誤，請用 4 位數 MMDD，例如 0706。",
+    };
+  }
+  const tm = rawTime.match(/^(\d{1,2}):(\d{2})$/);
+  if (!tm || Number(tm[1]) > 23 || Number(tm[2]) > 59) {
+    return {
+      ok: false,
+      error:
+        "❌ 時間格式錯誤，請用 24 小時制 HH:MM（00:00～23:59），午夜請打 00:00。",
+    };
+  }
+  return { ok: true, time: `${tm[1].padStart(2, "0")}:${tm[2]}` };
+}
+
+// 執行結束遠征：回覆後刪除頻道
+async function endExpedition(interaction) {
+  const channel = interaction.channel;
+  await interaction
+    .reply({ content: "✅ 遠征結束，頻道將在 5 秒後刪除。" })
+    .catch(() => {});
+  setTimeout(() => channel.delete().catch(() => {}), 5000);
+}
+
+// 按「結束遠征」/「是，結束遠征」→ 限團長本人或管理員
+async function handleEndExpeditionButton(interaction, leaderId) {
+  const isLeader = leaderId && interaction.user.id === leaderId;
+  if (!isLeader && !isAdmin(interaction.member)) {
+    await interaction.reply({
+      content: "❌ 只有這個遠征團的團長或管理員可以結束遠征。",
+      flags: 64,
+    });
+    return;
+  }
+  await endExpedition(interaction);
+}
+
+// 按「還沒，先留著」→ 收起按鈕，之後不再自動詢問（保留識別字避免重複詢問）
+async function handleEndConfirmNo(interaction) {
+  await interaction.update({
+    content: `${END_PROMPT_MARKER}（已標記稍後再結束，需要時可用上方「🏁 結束遠征」按鈕或 /結束遠征）`,
+    components: [],
+  });
+}
+
+// /結束遠征 指令：限遠征頻道內、且為團長或管理員
+async function handleEndExpeditionCommand(interaction) {
+  const channel = interaction.channel;
+  if (!channel.parent || channel.parent.name !== EXPEDITION_CATEGORY) {
+    await interaction.reply({
+      content: "❌ 這個指令只能在遠征報名頻道裡使用。",
+      flags: 64,
+    });
+    return;
+  }
+  const leaderId = await getExpeditionLeaderId(channel);
+  await handleEndExpeditionButton(interaction, leaderId);
+}
+
+// 按「🕐 更改時間」按鈕 / 用 /更改時間 指令 → 限團長本人或管理員，跳出輸入新時間的視窗
+async function handleEditExpeditionButton(interaction, leaderId) {
+  const channel = interaction.channel;
+  if (!channel.parent || channel.parent.name !== EXPEDITION_CATEGORY) {
+    await interaction.reply({
+      content: "❌ 這個功能只能在遠征報名頻道裡使用。",
+      flags: 64,
+    });
+    return;
+  }
+  const isLeader = leaderId && interaction.user.id === leaderId;
+  if (!isLeader && !isAdmin(interaction.member)) {
+    await interaction.reply({
+      content: "❌ 只有這個遠征團的團長或管理員可以更改時間。",
+      flags: 64,
+    });
+    return;
   }
 
-  // 依王 + 日期 + 時間建立一個報名頻道
-  async function createExpeditionChannel(guild, boss, date, time, creatorId) {
-    const category = await getOrCreateExpeditionCategory(guild);
-    const channel = await guild.channels.create({
-      name: buildExpeditionChannelName(boss, date, time),
-      type: ChannelType.GuildText,
-      parent: category.id,
-      topic: buildExpeditionTopic(boss, date, time, creatorId),
+  // 解析目前的日期時間當作預設值
+  const m = (channel.name || "").match(/^(\d{2})(\d{2})-(\d{2})(\d{2})-/);
+  const curDate = m ? `${m[1]}${m[2]}` : "";
+  const curTime = m ? `${m[3]}:${m[4]}` : "";
+
+  const modal = new ModalBuilder()
+    .setCustomId("expedition_edit_time")
+    .setTitle("更改遠征時間");
+  modal.addComponents(
+    new ActionRowBuilder().addComponents(
+      new TextInputBuilder()
+        .setCustomId("exp_date")
+        .setLabel("新日期（例：0704）")
+        .setPlaceholder("0704")
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true)
+        .setValue(curDate),
+    ),
+    new ActionRowBuilder().addComponents(
+      new TextInputBuilder()
+        .setCustomId("exp_time")
+        .setLabel("新時間（例：20:00）")
+        .setPlaceholder("20:00")
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true)
+        .setValue(curTime),
+    ),
+  );
+  await interaction.showModal(modal);
+}
+
+// 送出新時間 → 改頻道名稱 / 主題 / 置頂範本，並清掉舊的「遠征結束了嗎？」提示
+async function handleExpeditionEditTimeModal(interaction) {
+  const channel = interaction.channel;
+  if (!channel.parent || channel.parent.name !== EXPEDITION_CATEGORY) {
+    await interaction.reply({
+      content: "❌ 這個功能只能在遠征報名頻道裡使用。",
+      flags: 64,
     });
-
-    // 報名格式範本 + 控制按鈕，釘選在頂端
-    const formatMessage = await channel.send({
-      content: buildExpeditionFormatContent(boss, date, time),
-      components: [buildExpeditionControlRow(creatorId)],
-    });
-    await formatMessage.pin().catch(() => {});
-
-    // 依日期升冪重排，新頻道會插到正確位置而不是被丟到最下面
-    await sortExpeditionChannels(guild).catch(() => {});
-
-    return channel;
+    return;
   }
 
-  // 從頻道名稱 MMDD-HHMM- 解析出遠征日期時間（回傳 Date 或 null）
-  function parseExpeditionDateTime(name) {
-    const m = name.match(/^(\d{2})(\d{2})-(\d{2})(\d{2})-/);
-    if (!m) return null;
-    const [, mm, dd, HH, MM] = m;
-    const now = new Date();
-    // 以固定時區 UTC+EXPEDITION_TZ_OFFSET 解讀輸入時間，換算成絕對時間點
-    const build = (y) =>
-      new Date(
-        Date.UTC(y, Number(mm) - 1, Number(dd), Number(HH), Number(MM)) -
-          EXPEDITION_TZ_OFFSET * 3600 * 1000,
+  const leaderId = getExpeditionLeaderId(channel);
+  const isLeader = leaderId && interaction.user.id === leaderId;
+  if (!isLeader && !isAdmin(interaction.member)) {
+    await interaction.reply({
+      content: "❌ 只有這個遠征團的團長或管理員可以更改時間。",
+      flags: 64,
+    });
+    return;
+  }
+
+  const date = interaction.fields.getTextInputValue("exp_date").trim();
+  const rawTime = interaction.fields.getTextInputValue("exp_time").trim();
+  const valid = validateExpeditionDateTime(date, rawTime);
+  if (!valid.ok) {
+    await interaction.reply({ content: valid.error, flags: 64 });
+    return;
+  }
+  const time = valid.time;
+
+  const boss = getExpeditionBoss(channel);
+  if (!boss) {
+    await interaction.reply({
+      content: "❌ 無法判斷這個頻道是打哪隻王，無法更改時間。",
+      flags: 64,
+    });
+    return;
+  }
+
+  await interaction.deferReply();
+  try {
+    await channel.setName(buildExpeditionChannelName(boss, date, time));
+    await channel.setTopic(buildExpeditionTopic(boss, date, time, leaderId));
+
+    // 時間變了 → 依日期升冪重排頻道位置
+    await sortExpeditionChannels(channel.guild).catch(() => {});
+
+    // 更新置頂範本訊息（含控制按鈕）
+    const pinned = await channel.messages.fetchPinned().catch(() => null);
+    if (pinned) {
+      const tmpl = pinned.find(
+        (mm) => mm.author.id === client.user.id && mm.components.length > 0,
       );
-    let dt = build(now.getUTCFullYear());
-    // 跨年處理：算出來離現在太遠，就往前/後推一年
-    const diffDays = (dt - now) / 86400000;
-    if (diffDays > 180) dt = build(now.getUTCFullYear() - 1);
-    else if (diffDays < -180) dt = build(now.getUTCFullYear() + 1);
-    return dt;
+      if (tmpl) {
+        await tmpl
+          .edit({
+            content: buildExpeditionFormatContent(boss, date, time),
+            components: [buildExpeditionControlRow(leaderId)],
+          })
+          .catch(() => {});
+      }
+    }
+
+    // 清掉舊的「遠征結束了嗎？」提示，讓時間到了會重新提醒
+    const recent = await channel.messages
+      .fetch({ limit: 20 })
+      .catch(() => null);
+    if (recent) {
+      for (const mm of recent.values()) {
+        if (
+          mm.author.id === client.user.id &&
+          mm.content.includes(END_PROMPT_MARKER)
+        ) {
+          await mm.delete().catch(() => {});
+        }
+      }
+    }
+
+    // 時間改了 → 重置提醒旗標，讓新的前一天會重新 tag 提醒
+    const data = expeditionMembers[channel.id];
+    if (data && data.reminded) {
+      data.reminded = false;
+      saveExpeditionMembers();
+    }
+
+    await channel
+      .send(
+        `🕐 <@${interaction.user.id}> 已將遠征時間更新為 **${date} ${time}**，請團員留意！`,
+      )
+      .catch(() => {});
+    await interaction.editReply(`✅ 遠征時間已更新為 **${date} ${time}**。`);
+  } catch (err) {
+    console.error("更改遠征時間失敗:", err);
+    const msg =
+      err.code === 50013
+        ? "❌ 我沒有「管理頻道」權限，無法更改頻道時間。請幫我補上該權限後再試。"
+        : "❌ 更改時間時發生錯誤，請查看後台 log。";
+    await interaction.editReply(msg).catch(() => {});
+  }
+}
+
+// 遠征前一天提醒的最長提前量
+const EXPEDITION_REMINDER_WINDOW = 24 * 60 * 60 * 1000;
+// 一次遠征最多可確認的團員數
+const EXPEDITION_MAX_MEMBERS = 12;
+
+// 從頻道名稱組出可讀的「MMDD HH:MM」字串
+function getExpeditionTimeLabel(channel) {
+  const m = (channel.name || "").match(/^(\d{2})(\d{2})-(\d{2})(\d{2})-/);
+  return m ? `${m[1]}${m[2]} ${m[3]}:${m[4]}` : "";
+}
+
+// 貼出／更新公開的「已確認團員」名單訊息（名單訊息本身不 tag，避免每次編輯都通知）
+async function postExpeditionRoster(channel, data) {
+  const content = data.members.length
+    ? `👥 **已確認團員（${data.members.length} 人）**\n` +
+      data.members.map((id) => `<@${id}>`).join(" ")
+    : "👥 **已確認團員**：目前尚未確認任何團員。";
+  let msg = null;
+  if (data.rosterMessageId) {
+    msg = await channel.messages.fetch(data.rosterMessageId).catch(() => null);
+  }
+  if (msg) {
+    await msg.edit({ content, allowedMentions: { users: [] } }).catch(() => {});
+  } else {
+    const sent = await channel
+      .send({ content, allowedMentions: { users: [] } })
+      .catch(() => null);
+    if (sent) data.rosterMessageId = sent.id;
+  }
+}
+
+// 按「✅ 確認團員」→ 限團長本人或管理員，跳出成員選擇選單（最多 12 人）
+async function handleConfirmMembersButton(interaction, leaderId) {
+  const channel = interaction.channel;
+  if (!channel.parent || channel.parent.name !== EXPEDITION_CATEGORY) {
+    await interaction.reply({
+      content: "❌ 這個功能只能在遠征報名頻道裡使用。",
+      flags: 64,
+    });
+    return;
+  }
+  const isLeader = leaderId && interaction.user.id === leaderId;
+  if (!isLeader && !isAdmin(interaction.member)) {
+    await interaction.reply({
+      content: "❌ 只有這個遠征團的團長或管理員可以確認團員。",
+      flags: 64,
+    });
+    return;
   }
 
-  // 把遠征分類底下的頻道，依遠征日期時間「由早到晚（升冪）」重新排序
-  async function sortExpeditionChannels(guild) {
+  const menu = new UserSelectMenuBuilder()
+    .setCustomId("exp_member_select")
+    .setPlaceholder(`選擇參加的團員（最多 ${EXPEDITION_MAX_MEMBERS} 人）`)
+    .setMinValues(0)
+    .setMaxValues(EXPEDITION_MAX_MEMBERS);
+  // 帶入先前已確認的名單當預設值（舊版 discord.js 沒有此方法就略過）
+  const existing = expeditionMembers[channel.id];
+  if (existing && Array.isArray(existing.members) && existing.members.length) {
+    try {
+      menu.setDefaultUsers(existing.members.slice(0, EXPEDITION_MAX_MEMBERS));
+    } catch {}
+  }
+  await interaction.reply({
+    content: `請選擇這次遠征確認參加的團員（最多 ${EXPEDITION_MAX_MEMBERS} 人），選好後會自動記錄，遠征前一天會自動 tag 提醒：`,
+    components: [new ActionRowBuilder().addComponents(menu)],
+    flags: 64,
+  });
+}
+
+// 選好團員送出 → 存檔並更新公開名單
+async function handleConfirmMembersSelect(interaction) {
+  const channel = interaction.channel;
+  if (!channel.parent || channel.parent.name !== EXPEDITION_CATEGORY) {
+    await interaction.reply({
+      content: "❌ 這個功能只能在遠征報名頻道裡使用。",
+      flags: 64,
+    });
+    return;
+  }
+  const leaderId = getExpeditionLeaderId(channel);
+  const isLeader = leaderId && interaction.user.id === leaderId;
+  if (!isLeader && !isAdmin(interaction.member)) {
+    await interaction.reply({
+      content: "❌ 只有這個遠征團的團長或管理員可以確認團員。",
+      flags: 64,
+    });
+    return;
+  }
+
+  const members = interaction.values.slice(0, EXPEDITION_MAX_MEMBERS);
+  const prev = expeditionMembers[channel.id] || {};
+  const data = {
+    members,
+    guildId: channel.guild.id,
+    reminded: prev.reminded || false,
+    rosterMessageId: prev.rosterMessageId || null,
+  };
+  await postExpeditionRoster(channel, data);
+  expeditionMembers[channel.id] = data;
+  saveExpeditionMembers();
+
+  await interaction.update({
+    content: members.length
+      ? `✅ 已確認 ${members.length} 位團員：\n` +
+        members.map((id) => `<@${id}>`).join(" ")
+      : "✅ 已清空團員名單。",
+    components: [],
+    allowedMentions: { users: [] },
+  });
+}
+
+// 遠征前一天（24 小時內）自動 tag 已確認團員一次
+async function maybeSendExpeditionReminder(channel, dt, now) {
+  const msLeft = dt - now;
+  if (msLeft <= 0 || msLeft > EXPEDITION_REMINDER_WINDOW) return;
+  const data = expeditionMembers[channel.id];
+  if (!data || data.reminded) return;
+  if (!Array.isArray(data.members) || data.members.length === 0) return;
+
+  const boss = getExpeditionBoss(channel);
+  const label = getExpeditionTimeLabel(channel);
+  const mentions = data.members.map((id) => `<@${id}>`).join(" ");
+  await channel
+    .send({
+      content:
+        `⏰ **遠征提醒**\n` +
+        `${boss ? `${boss.emoji} ${boss.name}　` : ""}${label} 的遠征即將在 24 小時內開始！\n` +
+        `以下團員記得準時參加：\n${mentions}`,
+      allowedMentions: { users: data.members },
+    })
+    .catch(() => {});
+  data.reminded = true;
+  saveExpeditionMembers();
+}
+
+// 頻道超過三天沒人講話 → 貼一次「想健太了嗎」提醒（貼完自己就是最新訊息，之後三天內不會再貼）
+const INACTIVITY_MARKER = "想健太了嗎";
+async function maybeSendInactivityReminder(channel, now) {
+  const messages = await channel.messages.fetch({ limit: 1 }).catch(() => null);
+  if (!messages || messages.size === 0) return;
+  const lastMessage = messages.first();
+  const daysSinceLast =
+    (now - lastMessage.createdTimestamp) / (1000 * 60 * 60 * 24);
+  if (daysSinceLast < 3) return;
+  // 最近訊息裡已經貼過就跳過（用獨有字串判斷，避免和「前一天提醒」混淆）
+  const recent = await channel.messages.fetch({ limit: 20 }).catch(() => null);
+  const already = recent?.some(
+    (m) =>
+      m.author.id === client.user.id && m.content.includes(INACTIVITY_MARKER),
+  );
+  if (already) return;
+  await channel
+    .send(
+      "⏰ **遠征提醒**\n想健太了嗎❤️？\n大家別忘了確認遠征時間，記得提早做好準備喔！",
+    )
+    .catch(() => {});
+}
+
+// 定時掃描：遠征時間已過的頻道，貼一次「遠征結束了嗎？」提示
+async function scanExpeditions() {
+  const now = new Date();
+  for (const guild of client.guilds.cache.values()) {
     const category = guild.channels.cache.find(
       (c) =>
         c.type === ChannelType.GuildCategory && c.name === EXPEDITION_CATEGORY,
     );
-    if (!category) return;
-    const channels = [
-      ...guild.channels.cache
-        .filter(
-          (c) => c.parentId === category.id && c.type === ChannelType.GuildText,
-        )
-        .values(),
-    ];
-    if (channels.length < 2) return;
-    // 依解析出的遠征時間升冪；無法解析日期的頻道排到最後、維持原本相對順序
-    channels.sort((a, b) => {
-      const da = parseExpeditionDateTime(a.name);
-      const db = parseExpeditionDateTime(b.name);
-      if (!da && !db) return a.position - b.position;
-      if (!da) return 1;
-      if (!db) return -1;
-      return da - db;
-    });
-    // 目前位置已經是升冪就不用打 API（避免每次都送請求）
-    const alreadySorted = channels.every(
-      (ch, i) => i === 0 || channels[i - 1].position <= ch.position,
+    if (!category) continue;
+    // 自我修復：確保頻道依日期升冪排列（順序已正確時不會打 API）
+    await sortExpeditionChannels(guild).catch(() => {});
+    const channels = guild.channels.cache.filter(
+      (c) => c.parentId === category.id && c.type === ChannelType.GuildText,
     );
-    if (alreadySorted) return;
-    await guild.channels
-      .setPositions(channels.map((ch, i) => ({ channel: ch.id, position: i })))
-      .catch((e) => console.error('重排遠征頻道失敗:', e.message));
-  }
-
-  // 讀取頻道的遠征團團長 ID（存在頻道 topic 的「團長:ID」標記裡）
-  function getExpeditionLeaderId(channel) {
-    const m = (channel.topic || '').match(/團長:(\d+)/);
-    return m ? m[1] : null;
-  }
-
-  // 從頻道判斷是打哪隻王：優先用 topic 的「emoji 名稱　」比對（避免「拉圖斯/困難拉圖斯」互相誤判），
-  // 再退回用頻道名稱做最長名稱比對
-  function getExpeditionBoss(channel) {
-    const topic = channel.topic || '';
-    const byTopic = BOSSES.find((b) =>
-      topic.includes(`${b.emoji} ${b.name}　`),
-    );
-    if (byTopic) return byTopic;
-    const name = channel.name || '';
-    return (
-      [...BOSSES]
-        .sort((a, b) => b.name.length - a.name.length)
-        .find((b) => name.includes(b.name)) || null
-    );
-  }
-
-  // 驗證日期(MMDD) / 時間(HH:MM)，回傳 { ok, time } 或 { ok:false, error }
-  function validateExpeditionDateTime(date, rawTime) {
-    if (!/^\d{4}$/.test(date)) {
-      return {
-        ok: false,
-        error: '❌ 日期格式錯誤，請用 4 位數 MMDD，例如 0706。',
-      };
-    }
-    const tm = rawTime.match(/^(\d{1,2}):(\d{2})$/);
-    if (!tm || Number(tm[1]) > 23 || Number(tm[2]) > 59) {
-      return {
-        ok: false,
-        error:
-          '❌ 時間格式錯誤，請用 24 小時制 HH:MM（00:00～23:59），午夜請打 00:00。',
-      };
-    }
-    return { ok: true, time: `${tm[1].padStart(2, '0')}:${tm[2]}` };
-  }
-
-  // 執行結束遠征：回覆後刪除頻道
-  async function endExpedition(interaction) {
-    const channel = interaction.channel;
-    await interaction
-      .reply({ content: '✅ 遠征結束，頻道將在 5 秒後刪除。' })
-      .catch(() => {});
-    setTimeout(() => channel.delete().catch(() => {}), 5000);
-  }
-
-  // 按「結束遠征」/「是，結束遠征」→ 限團長本人或管理員
-  async function handleEndExpeditionButton(interaction, leaderId) {
-    const isLeader = leaderId && interaction.user.id === leaderId;
-    if (!isLeader && !isAdmin(interaction.member)) {
-      await interaction.reply({
-        content: '❌ 只有這個遠征團的團長或管理員可以結束遠征。',
-        flags: 64,
-      });
-      return;
-    }
-    await endExpedition(interaction);
-  }
-
-  // 按「還沒，先留著」→ 收起按鈕，之後不再自動詢問（保留識別字避免重複詢問）
-  async function handleEndConfirmNo(interaction) {
-    await interaction.update({
-      content: `${END_PROMPT_MARKER}（已標記稍後再結束，需要時可用上方「🏁 結束遠征」按鈕或 /結束遠征）`,
-      components: [],
-    });
-  }
-
-  // /結束遠征 指令：限遠征頻道內、且為團長或管理員
-  async function handleEndExpeditionCommand(interaction) {
-    const channel = interaction.channel;
-    if (!channel.parent || channel.parent.name !== EXPEDITION_CATEGORY) {
-      await interaction.reply({
-        content: '❌ 這個指令只能在遠征報名頻道裡使用。',
-        flags: 64,
-      });
-      return;
-    }
-    const leaderId = await getExpeditionLeaderId(channel);
-    await handleEndExpeditionButton(interaction, leaderId);
-  }
-
-  // 按「🕐 更改時間」按鈕 / 用 /更改時間 指令 → 限團長本人或管理員，跳出輸入新時間的視窗
-  async function handleEditExpeditionButton(interaction, leaderId) {
-    const channel = interaction.channel;
-    if (!channel.parent || channel.parent.name !== EXPEDITION_CATEGORY) {
-      await interaction.reply({
-        content: '❌ 這個功能只能在遠征報名頻道裡使用。',
-        flags: 64,
-      });
-      return;
-    }
-    const isLeader = leaderId && interaction.user.id === leaderId;
-    if (!isLeader && !isAdmin(interaction.member)) {
-      await interaction.reply({
-        content: '❌ 只有這個遠征團的團長或管理員可以更改時間。',
-        flags: 64,
-      });
-      return;
-    }
-
-    // 解析目前的日期時間當作預設值
-    const m = (channel.name || '').match(/^(\d{2})(\d{2})-(\d{2})(\d{2})-/);
-    const curDate = m ? `${m[1]}${m[2]}` : '';
-    const curTime = m ? `${m[3]}:${m[4]}` : '';
-
-    const modal = new ModalBuilder()
-      .setCustomId('expedition_edit_time')
-      .setTitle('更改遠征時間');
-    modal.addComponents(
-      new ActionRowBuilder().addComponents(
-        new TextInputBuilder()
-          .setCustomId('exp_date')
-          .setLabel('新日期（例：0704）')
-          .setPlaceholder('0704')
-          .setStyle(TextInputStyle.Short)
-          .setRequired(true)
-          .setValue(curDate),
-      ),
-      new ActionRowBuilder().addComponents(
-        new TextInputBuilder()
-          .setCustomId('exp_time')
-          .setLabel('新時間（例：20:00）')
-          .setPlaceholder('20:00')
-          .setStyle(TextInputStyle.Short)
-          .setRequired(true)
-          .setValue(curTime),
-      ),
-    );
-    await interaction.showModal(modal);
-  }
-
-  // 送出新時間 → 改頻道名稱 / 主題 / 置頂範本，並清掉舊的「遠征結束了嗎？」提示
-  async function handleExpeditionEditTimeModal(interaction) {
-    const channel = interaction.channel;
-    if (!channel.parent || channel.parent.name !== EXPEDITION_CATEGORY) {
-      await interaction.reply({
-        content: '❌ 這個功能只能在遠征報名頻道裡使用。',
-        flags: 64,
-      });
-      return;
-    }
-
-    const leaderId = getExpeditionLeaderId(channel);
-    const isLeader = leaderId && interaction.user.id === leaderId;
-    if (!isLeader && !isAdmin(interaction.member)) {
-      await interaction.reply({
-        content: '❌ 只有這個遠征團的團長或管理員可以更改時間。',
-        flags: 64,
-      });
-      return;
-    }
-
-    const date = interaction.fields.getTextInputValue('exp_date').trim();
-    const rawTime = interaction.fields.getTextInputValue('exp_time').trim();
-    const valid = validateExpeditionDateTime(date, rawTime);
-    if (!valid.ok) {
-      await interaction.reply({ content: valid.error, flags: 64 });
-      return;
-    }
-    const time = valid.time;
-
-    const boss = getExpeditionBoss(channel);
-    if (!boss) {
-      await interaction.reply({
-        content: '❌ 無法判斷這個頻道是打哪隻王，無法更改時間。',
-        flags: 64,
-      });
-      return;
-    }
-
-    await interaction.deferReply();
-    try {
-      await channel.setName(buildExpeditionChannelName(boss, date, time));
-      await channel.setTopic(buildExpeditionTopic(boss, date, time, leaderId));
-
-      // 時間變了 → 依日期升冪重排頻道位置
-      await sortExpeditionChannels(channel.guild).catch(() => {});
-
-      // 更新置頂範本訊息（含控制按鈕）
-      const pinned = await channel.messages.fetchPinned().catch(() => null);
-      if (pinned) {
-        const tmpl = pinned.find(
-          (mm) => mm.author.id === client.user.id && mm.components.length > 0,
-        );
-        if (tmpl) {
-          await tmpl
-            .edit({
-              content: buildExpeditionFormatContent(boss, date, time),
-              components: [buildExpeditionControlRow(leaderId)],
-            })
-            .catch(() => {});
-        }
-      }
-
-      // 清掉舊的「遠征結束了嗎？」提示，讓時間到了會重新提醒
-      const recent = await channel.messages
-        .fetch({ limit: 20 })
-        .catch(() => null);
-      if (recent) {
-        for (const mm of recent.values()) {
-          if (
-            mm.author.id === client.user.id &&
-            mm.content.includes(END_PROMPT_MARKER)
-          ) {
-            await mm.delete().catch(() => {});
-          }
-        }
-      }
-
-      // 時間改了 → 重置提醒旗標，讓新的前一天會重新 tag 提醒
-      const data = expeditionMembers[channel.id];
-      if (data && data.reminded) {
-        data.reminded = false;
-        saveExpeditionMembers();
-      }
-
-      await channel
-        .send(
-          `🕐 <@${interaction.user.id}> 已將遠征時間更新為 **${date} ${time}**，請團員留意！`,
-        )
+    for (const ch of channels.values()) {
+      const dt = parseExpeditionDateTime(ch.name);
+      if (!dt) continue;
+      // 頻道三天沒人講話 → 提醒（對所有遠征頻道都生效）
+      await maybeSendInactivityReminder(ch, now);
+      // 遠征前一天，自動 tag 已確認團員提醒
+      await maybeSendExpeditionReminder(ch, dt, now);
+      if (now < dt) continue; // 還沒到遠征時間，先不貼結束提示
+      // 避免重複詢問：最近訊息裡已有提示就跳過
+      const recent = await ch.messages.fetch({ limit: 15 }).catch(() => null);
+      if (!recent) continue;
+      const already = recent.some(
+        (m) =>
+          m.author.id === client.user.id &&
+          m.content.includes(END_PROMPT_MARKER),
+      );
+      if (already) continue;
+      const leaderId = await getExpeditionLeaderId(ch);
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`exp_endok~${leaderId || "0"}`)
+          .setLabel("✅ 是，結束遠征")
+          .setStyle(ButtonStyle.Success),
+        new ButtonBuilder()
+          .setCustomId("exp_endno")
+          .setLabel("還沒，先留著")
+          .setStyle(ButtonStyle.Secondary),
+      );
+      await ch
+        .send({
+          content: `${END_PROMPT_MARKER}\n團長或管理員，這團打完了嗎？打完可以按「是，結束遠征」關閉頻道。`,
+          components: [row],
+        })
         .catch(() => {});
-      await interaction.editReply(`✅ 遠征時間已更新為 **${date} ${time}**。`);
-    } catch (err) {
-      console.error('更改遠征時間失敗:', err);
-      const msg =
-        err.code === 50013
-          ? '❌ 我沒有「管理頻道」權限，無法更改頻道時間。請幫我補上該權限後再試。'
-          : '❌ 更改時間時發生錯誤，請查看後台 log。';
-      await interaction.editReply(msg).catch(() => {});
     }
   }
+}
 
-  // 遠征前一天提醒的最長提前量
-  const EXPEDITION_REMINDER_WINDOW = 24 * 60 * 60 * 1000;
-  // 一次遠征最多可確認的團員數
-  const EXPEDITION_MAX_MEMBERS = 12;
-
-  // 從頻道名稱組出可讀的「MMDD HH:MM」字串
-  function getExpeditionTimeLabel(channel) {
-    const m = (channel.name || '').match(/^(\d{2})(\d{2})-(\d{2})(\d{2})-/);
-    return m ? `${m[1]}${m[2]} ${m[3]}:${m[4]}` : '';
+// 管理員發出遠征面板（每個王一顆按鈕）
+async function handleExpeditionPanel(interaction) {
+  const rows = [];
+  for (let i = 0; i < BOSSES.length; i += 5) {
+    const row = new ActionRowBuilder();
+    BOSSES.slice(i, i + 5).forEach((boss) => {
+      row.addComponents(
+        new ButtonBuilder()
+          .setCustomId(`expedition_boss_${boss.id}`)
+          .setLabel(`${boss.emoji} ${boss.name}`)
+          .setStyle(ButtonStyle.Primary),
+      );
+    });
+    rows.push(row);
   }
+  const embed = new EmbedBuilder()
+    .setTitle("🗡️ 建立遠征隊")
+    .setDescription(
+      "點選要打的王，填寫時間後送出申請。\n管理員同意後，就會自動開一個報名頻道。",
+    )
+    .setColor(0x5865f2);
+  await interaction.reply({ embeds: [embed], components: rows });
+}
 
-  // 貼出／更新公開的「已確認團員」名單訊息（名單訊息本身不 tag，避免每次編輯都通知）
-  async function postExpeditionRoster(channel, data) {
-    const content = data.members.length
-      ? `👥 **已確認團員（${data.members.length} 人）**\n` +
-        data.members.map((id) => `<@${id}>`).join(' ')
-      : '👥 **已確認團員**：目前尚未確認任何團員。';
-    let msg = null;
-    if (data.rosterMessageId) {
-      msg = await channel.messages
-        .fetch(data.rosterMessageId)
-        .catch(() => null);
-    }
-    if (msg) {
-      await msg
-        .edit({ content, allowedMentions: { users: [] } })
-        .catch(() => {});
-    } else {
-      const sent = await channel
-        .send({ content, allowedMentions: { users: [] } })
-        .catch(() => null);
-      if (sent) data.rosterMessageId = sent.id;
-    }
+// 點王按鈕 → 跳出輸入時間的視窗
+async function handleExpeditionBossButton(interaction, bossId) {
+  const boss = BOSSES.find((b) => b.id === bossId);
+  if (!boss) return;
+  const modal = new ModalBuilder()
+    .setCustomId(`expedition_time_${bossId}`)
+    .setTitle(`${boss.name} 遠征時間`);
+  modal.addComponents(
+    new ActionRowBuilder().addComponents(
+      new TextInputBuilder()
+        .setCustomId("exp_date")
+        .setLabel("日期（例：0704）")
+        .setPlaceholder("0704")
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true),
+    ),
+    new ActionRowBuilder().addComponents(
+      new TextInputBuilder()
+        .setCustomId("exp_time")
+        .setLabel("時間（例：20:00）")
+        .setPlaceholder("20:00")
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true),
+    ),
+  );
+  await interaction.showModal(modal);
+}
+
+// 送出時間 → 產生一則審核申請（含 同意 / 拒絕 按鈕）
+async function handleExpeditionTimeModal(interaction, bossId) {
+  const boss = BOSSES.find((b) => b.id === bossId);
+  if (!boss) return;
+  const date = interaction.fields.getTextInputValue("exp_date").trim();
+  const rawTime = interaction.fields.getTextInputValue("exp_time").trim();
+
+  // 強制格式：日期必須 MMDD（4 位數）、時間必須 HH:MM
+  const valid = validateExpeditionDateTime(date, rawTime);
+  if (!valid.ok) {
+    await interaction.reply({ content: valid.error, flags: 64 });
+    return;
   }
+  const time = valid.time;
+  const creatorId = interaction.user.id;
 
-  // 按「✅ 確認團員」→ 限團長本人或管理員，跳出成員選擇選單（最多 12 人）
-  async function handleConfirmMembersButton(interaction, leaderId) {
-    const channel = interaction.channel;
-    if (!channel.parent || channel.parent.name !== EXPEDITION_CATEGORY) {
-      await interaction.reply({
-        content: '❌ 這個功能只能在遠征報名頻道裡使用。',
-        flags: 64,
-      });
-      return;
-    }
-    const isLeader = leaderId && interaction.user.id === leaderId;
-    if (!isLeader && !isAdmin(interaction.member)) {
-      await interaction.reply({
-        content: '❌ 只有這個遠征團的團長或管理員可以確認團員。',
-        flags: 64,
-      });
-      return;
-    }
+  const embed = new EmbedBuilder()
+    .setTitle("📋 遠征隊申請（待管理員審核）")
+    .setColor(0xfaa61a)
+    .addFields(
+      { name: "王", value: `${boss.emoji} ${boss.name}`, inline: true },
+      { name: "日期", value: date, inline: true },
+      { name: "時間", value: time, inline: true },
+      { name: "申請人", value: `<@${creatorId}>` },
+    );
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`exp_ok~${bossId}~${date}~${time}~${creatorId}`)
+      .setLabel("✅ 同意")
+      .setStyle(ButtonStyle.Success),
+    new ButtonBuilder()
+      .setCustomId(`exp_no~${bossId}`)
+      .setLabel("❌ 拒絕")
+      .setStyle(ButtonStyle.Danger),
+  );
+  await interaction.reply({ embeds: [embed], components: [row] });
+}
 
-    const menu = new UserSelectMenuBuilder()
-      .setCustomId('exp_member_select')
-      .setPlaceholder(`選擇參加的團員（最多 ${EXPEDITION_MAX_MEMBERS} 人）`)
-      .setMinValues(0)
-      .setMaxValues(EXPEDITION_MAX_MEMBERS);
-    // 帶入先前已確認的名單當預設值（舊版 discord.js 沒有此方法就略過）
-    const existing = expeditionMembers[channel.id];
-    if (
-      existing &&
-      Array.isArray(existing.members) &&
-      existing.members.length
-    ) {
-      try {
-        menu.setDefaultUsers(existing.members.slice(0, EXPEDITION_MAX_MEMBERS));
-      } catch {}
-    }
+// 管理員按 同意 / 拒絕
+async function handleExpeditionApproval(interaction, customId) {
+  if (!isAdmin(interaction.member)) {
     await interaction.reply({
-      content: `請選擇這次遠征確認參加的團員（最多 ${EXPEDITION_MAX_MEMBERS} 人），選好後會自動記錄，遠征前一天會自動 tag 提醒：`,
-      components: [new ActionRowBuilder().addComponents(menu)],
+      content: "❌ 只有管理員可以審核遠征申請。",
       flags: 64,
     });
+    return;
   }
 
-  // 選好團員送出 → 存檔並更新公開名單
-  async function handleConfirmMembersSelect(interaction) {
-    const channel = interaction.channel;
-    if (!channel.parent || channel.parent.name !== EXPEDITION_CATEGORY) {
-      await interaction.reply({
-        content: '❌ 這個功能只能在遠征報名頻道裡使用。',
-        flags: 64,
-      });
-      return;
-    }
-    const leaderId = getExpeditionLeaderId(channel);
-    const isLeader = leaderId && interaction.user.id === leaderId;
-    if (!isLeader && !isAdmin(interaction.member)) {
-      await interaction.reply({
-        content: '❌ 只有這個遠征團的團長或管理員可以確認團員。',
-        flags: 64,
-      });
-      return;
-    }
-
-    const members = interaction.values.slice(0, EXPEDITION_MAX_MEMBERS);
-    const prev = expeditionMembers[channel.id] || {};
-    const data = {
-      members,
-      guildId: channel.guild.id,
-      reminded: prev.reminded || false,
-      rosterMessageId: prev.rosterMessageId || null,
-    };
-    await postExpeditionRoster(channel, data);
-    expeditionMembers[channel.id] = data;
-    saveExpeditionMembers();
-
+  if (customId.startsWith("exp_no~")) {
     await interaction.update({
-      content: members.length
-        ? `✅ 已確認 ${members.length} 位團員：\n` +
-          members.map((id) => `<@${id}>`).join(' ')
-        : '✅ 已清空團員名單。',
+      content: `❌ 已由 <@${interaction.user.id}> 拒絕此遠征申請。`,
+      embeds: [],
       components: [],
-      allowedMentions: { users: [] },
     });
+    // 30 秒後自動刪除審核結果訊息
+    setTimeout(() => interaction.message.delete().catch(() => {}), 30 * 1000);
+    return;
   }
 
-  // 遠征前一天（24 小時內）自動 tag 已確認團員一次
-  async function maybeSendExpeditionReminder(channel, dt, now) {
-    const msLeft = dt - now;
-    if (msLeft <= 0 || msLeft > EXPEDITION_REMINDER_WINDOW) return;
-    const data = expeditionMembers[channel.id];
-    if (!data || data.reminded) return;
-    if (!Array.isArray(data.members) || data.members.length === 0) return;
-
-    const boss = getExpeditionBoss(channel);
-    const label = getExpeditionTimeLabel(channel);
-    const mentions = data.members.map((id) => `<@${id}>`).join(' ');
-    await channel
-      .send({
-        content:
-          `⏰ **遠征提醒**\n` +
-          `${boss ? `${boss.emoji} ${boss.name}　` : ''}${label} 的遠征即將在 24 小時內開始！\n` +
-          `以下團員記得準時參加：\n${mentions}`,
-        allowedMentions: { users: data.members },
-      })
-      .catch(() => {});
-    data.reminded = true;
-    saveExpeditionMembers();
+  // exp_ok~bossId~date~time~creatorId
+  const [, bossId, date, time, creatorId] = customId.split("~");
+  const boss = BOSSES.find((b) => b.id === bossId);
+  if (!boss) {
+    await interaction.reply({ content: "❌ 找不到對應的王。", flags: 64 });
+    return;
   }
 
-  // 頻道超過三天沒人講話 → 貼一次「想健太了嗎」提醒（貼完自己就是最新訊息，之後三天內不會再貼）
-  const INACTIVITY_MARKER = '想健太了嗎';
-  async function maybeSendInactivityReminder(channel, now) {
-    const messages = await channel.messages
-      .fetch({ limit: 1 })
-      .catch(() => null);
-    if (!messages || messages.size === 0) return;
-    const lastMessage = messages.first();
-    const daysSinceLast =
-      (now - lastMessage.createdTimestamp) / (1000 * 60 * 60 * 24);
-    if (daysSinceLast < 3) return;
-    // 最近訊息裡已經貼過就跳過（用獨有字串判斷，避免和「前一天提醒」混淆）
-    const recent = await channel.messages
-      .fetch({ limit: 20 })
-      .catch(() => null);
-    const already = recent?.some(
-      (m) =>
-        m.author.id === client.user.id && m.content.includes(INACTIVITY_MARKER),
+  try {
+    const channel = await createExpeditionChannel(
+      interaction.guild,
+      boss,
+      date,
+      time,
+      creatorId,
     );
-    if (already) return;
-    await channel
-      .send(
-        '⏰ **遠征提醒**\n想健太了嗎❤️？\n大家別忘了確認遠征時間，記得提早做好準備喔！',
-      )
-      .catch(() => {});
+    await interaction.update({
+      content: `✅ 已由 <@${interaction.user.id}> 核准，已建立報名頻道：${channel}`,
+      embeds: [],
+      components: [],
+    });
+    // 30 秒後自動刪除審核結果訊息
+    setTimeout(() => interaction.message.delete().catch(() => {}), 30 * 1000);
+  } catch (err) {
+    console.error("建立遠征頻道失敗:", err);
+    const msg =
+      err.code === 50013
+        ? "❌ 我沒有「管理頻道」權限，無法建立頻道。請幫我補上該權限後再試。"
+        : "❌ 建立頻道時發生錯誤，請查看後台 log。";
+    await interaction.reply({ content: msg, flags: 64 });
   }
+}
 
-  // 定時掃描：遠征時間已過的頻道，貼一次「遠征結束了嗎？」提示
-  async function scanExpeditions() {
-    const now = new Date();
-    for (const guild of client.guilds.cache.values()) {
-      const category = guild.channels.cache.find(
-        (c) =>
-          c.type === ChannelType.GuildCategory &&
-          c.name === EXPEDITION_CATEGORY,
-      );
-      if (!category) continue;
-      // 自我修復：確保頻道依日期升冪排列（順序已正確時不會打 API）
-      await sortExpeditionChannels(guild).catch(() => {});
-      const channels = guild.channels.cache.filter(
-        (c) => c.parentId === category.id && c.type === ChannelType.GuildText,
-      );
-      for (const ch of channels.values()) {
-        const dt = parseExpeditionDateTime(ch.name);
-        if (!dt) continue;
-        // 頻道三天沒人講話 → 提醒（對所有遠征頻道都生效）
-        await maybeSendInactivityReminder(ch, now);
-        // 遠征前一天，自動 tag 已確認團員提醒
-        await maybeSendExpeditionReminder(ch, dt, now);
-        if (now < dt) continue; // 還沒到遠征時間，先不貼結束提示
-        // 避免重複詢問：最近訊息裡已有提示就跳過
-        const recent = await ch.messages.fetch({ limit: 15 }).catch(() => null);
-        if (!recent) continue;
-        const already = recent.some(
-          (m) =>
-            m.author.id === client.user.id &&
-            m.content.includes(END_PROMPT_MARKER),
-        );
-        if (already) continue;
-        const leaderId = await getExpeditionLeaderId(ch);
-        const row = new ActionRowBuilder().addComponents(
-          new ButtonBuilder()
-            .setCustomId(`exp_endok~${leaderId || '0'}`)
-            .setLabel('✅ 是，結束遠征')
-            .setStyle(ButtonStyle.Success),
-          new ButtonBuilder()
-            .setCustomId('exp_endno')
-            .setLabel('還沒，先留著')
-            .setStyle(ButtonStyle.Secondary),
-        );
-        await ch
-          .send({
-            content: `${END_PROMPT_MARKER}\n團長或管理員，這團打完了嗎？打完可以按「是，結束遠征」關閉頻道。`,
-            components: [row],
-          })
-          .catch(() => {});
-      }
-    }
+// ============================================================================
+// [GAME] 求籤 / 同性戀指數 共用
+// ============================================================================
+function seededRandom(seed, max) {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    const char = seed.charCodeAt(i);
+    hash = (hash << 5) - hash + char;
+    hash = hash & hash;
   }
+  return max ? Math.abs(hash) % max : Math.abs(hash) % 101;
+}
 
-  // 管理員發出遠征面板（每個王一顆按鈕）
-  async function handleExpeditionPanel(interaction) {
-    const rows = [];
-    for (let i = 0; i < BOSSES.length; i += 5) {
-      const row = new ActionRowBuilder();
-      BOSSES.slice(i, i + 5).forEach((boss) => {
-        row.addComponents(
-          new ButtonBuilder()
-            .setCustomId(`expedition_boss_${boss.id}`)
-            .setLabel(`${boss.emoji} ${boss.name}`)
-            .setStyle(ButtonStyle.Primary),
-        );
-      });
-      rows.push(row);
-    }
-    const embed = new EmbedBuilder()
-      .setTitle('🗡️ 建立遠征隊')
-      .setDescription(
-        '點選要打的王，填寫時間後送出申請。\n管理員同意後，就會自動開一個報名頻道。',
-      )
-      .setColor(0x5865f2);
-    await interaction.reply({ embeds: [embed], components: rows });
-  }
+function createProgressBar(percentage) {
+  const totalBars = 20;
+  const filledBars = Math.round((percentage / 100) * totalBars);
+  const emptyBars = totalBars - filledBars;
+  const filled = "🌈".repeat(Math.max(0, filledBars));
+  const empty = "⬜".repeat(Math.max(0, emptyBars));
+  return `${filled}${empty} ${percentage}%`;
+}
 
-  // 點王按鈕 → 跳出輸入時間的視窗
-  async function handleExpeditionBossButton(interaction, bossId) {
-    const boss = BOSSES.find((b) => b.id === bossId);
-    if (!boss) return;
-    const modal = new ModalBuilder()
-      .setCustomId(`expedition_time_${bossId}`)
-      .setTitle(`${boss.name} 遠征時間`);
-    modal.addComponents(
-      new ActionRowBuilder().addComponents(
-        new TextInputBuilder()
-          .setCustomId('exp_date')
-          .setLabel('日期（例：0704）')
-          .setPlaceholder('0704')
-          .setStyle(TextInputStyle.Short)
-          .setRequired(true),
-      ),
-      new ActionRowBuilder().addComponents(
-        new TextInputBuilder()
-          .setCustomId('exp_time')
-          .setLabel('時間（例：20:00）')
-          .setPlaceholder('20:00')
-          .setStyle(TextInputStyle.Short)
-          .setRequired(true),
-      ),
-    );
-    await interaction.showModal(modal);
-  }
-
-  // 送出時間 → 產生一則審核申請（含 同意 / 拒絕 按鈕）
-  async function handleExpeditionTimeModal(interaction, bossId) {
-    const boss = BOSSES.find((b) => b.id === bossId);
-    if (!boss) return;
-    const date = interaction.fields.getTextInputValue('exp_date').trim();
-    const rawTime = interaction.fields.getTextInputValue('exp_time').trim();
-
-    // 強制格式：日期必須 MMDD（4 位數）、時間必須 HH:MM
-    const valid = validateExpeditionDateTime(date, rawTime);
-    if (!valid.ok) {
-      await interaction.reply({ content: valid.error, flags: 64 });
-      return;
-    }
-    const time = valid.time;
-    const creatorId = interaction.user.id;
-
-    const embed = new EmbedBuilder()
-      .setTitle('📋 遠征隊申請（待管理員審核）')
-      .setColor(0xfaa61a)
-      .addFields(
-        { name: '王', value: `${boss.emoji} ${boss.name}`, inline: true },
-        { name: '日期', value: date, inline: true },
-        { name: '時間', value: time, inline: true },
-        { name: '申請人', value: `<@${creatorId}>` },
-      );
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId(`exp_ok~${bossId}~${date}~${time}~${creatorId}`)
-        .setLabel('✅ 同意')
-        .setStyle(ButtonStyle.Success),
-      new ButtonBuilder()
-        .setCustomId(`exp_no~${bossId}`)
-        .setLabel('❌ 拒絕')
-        .setStyle(ButtonStyle.Danger),
-    );
-    await interaction.reply({ embeds: [embed], components: [row] });
-  }
-
-  // 管理員按 同意 / 拒絕
-  async function handleExpeditionApproval(interaction, customId) {
-    if (!isAdmin(interaction.member)) {
-      await interaction.reply({
-        content: '❌ 只有管理員可以審核遠征申請。',
-        flags: 64,
-      });
-      return;
-    }
-
-    if (customId.startsWith('exp_no~')) {
-      await interaction.update({
-        content: `❌ 已由 <@${interaction.user.id}> 拒絕此遠征申請。`,
-        embeds: [],
-        components: [],
-      });
-      // 30 秒後自動刪除審核結果訊息
-      setTimeout(() => interaction.message.delete().catch(() => {}), 30 * 1000);
-      return;
-    }
-
-    // exp_ok~bossId~date~time~creatorId
-    const [, bossId, date, time, creatorId] = customId.split('~');
-    const boss = BOSSES.find((b) => b.id === bossId);
-    if (!boss) {
-      await interaction.reply({ content: '❌ 找不到對應的王。', flags: 64 });
-      return;
-    }
-
-    try {
-      const channel = await createExpeditionChannel(
-        interaction.guild,
-        boss,
-        date,
-        time,
-        creatorId,
-      );
-      await interaction.update({
-        content: `✅ 已由 <@${interaction.user.id}> 核准，已建立報名頻道：${channel}`,
-        embeds: [],
-        components: [],
-      });
-      // 30 秒後自動刪除審核結果訊息
-      setTimeout(() => interaction.message.delete().catch(() => {}), 30 * 1000);
-    } catch (err) {
-      console.error('建立遠征頻道失敗:', err);
-      const msg =
-        err.code === 50013
-          ? '❌ 我沒有「管理頻道」權限，無法建立頻道。請幫我補上該權限後再試。'
-          : '❌ 建立頻道時發生錯誤，請查看後台 log。';
-      await interaction.reply({ content: msg, flags: 64 });
-    }
-  }
-
-  // ============================================================================
-  // [GAME] 求籤 / 同性戀指數 共用
-  // ============================================================================
-  function seededRandom(seed, max) {
-    let hash = 0;
-    for (let i = 0; i < seed.length; i++) {
-      const char = seed.charCodeAt(i);
-      hash = (hash << 5) - hash + char;
-      hash = hash & hash;
-    }
-    return max ? Math.abs(hash) % max : Math.abs(hash) % 101;
-  }
-
-  function createProgressBar(percentage) {
-    const totalBars = 20;
-    const filledBars = Math.round((percentage / 100) * totalBars);
-    const emptyBars = totalBars - filledBars;
-    const filled = '🌈'.repeat(Math.max(0, filledBars));
-    const empty = '⬜'.repeat(Math.max(0, emptyBars));
-    return `${filled}${empty} ${percentage}%`;
-  }
-
-  // ============================================================================
-  // [GAME] 指令處理
-  // ============================================================================
-  async function handleFortuneCommand(interaction) {
-    try {
-      const targetUser =
-        interaction.options.getUser('成員') || interaction.user;
-      const isSelf = targetUser.id === interaction.user.id;
-      const today = new Date().toDateString();
-      const seed = `fortune_${targetUser.id}_${today}`;
-      const randomValue = seededRandom(seed, 100);
-
-      const fortuneLevels = [
-        { name: '大吉', probability: 15, color: '#FFD700', emoji: '🌟' },
-        { name: '中吉', probability: 25, color: '#FFA500', emoji: '✨' },
-        { name: '吉', probability: 35, color: '#32CD32', emoji: '🍀' },
-        { name: '凶', probability: 20, color: '#FF6347', emoji: '⚠️' },
-        { name: '大凶', probability: 5, color: '#DC143C', emoji: '💀' },
-      ];
-
-      let cumulative = 0;
-      let selectedFortune = fortuneLevels[fortuneLevels.length - 1];
-      for (const level of fortuneLevels) {
-        cumulative += level.probability;
-        if (randomValue < cumulative) {
-          selectedFortune = level;
-          break;
-        }
-      }
-
-      const fortunePoems = {
-        大吉: [
-          {
-            poem: '紫氣東來照門第\n貴人相助事事宜\n財運亨通心願遂\n平安喜樂福無疆',
-            meaning: '今日運勢極佳，會有貴人相助，凡事順利！',
-          },
-          {
-            poem: '鳳凰展翅上青天\n金榜題名喜連連\n桃花朵朵迎春開\n富貴榮華樂無邊',
-            meaning: '好運連連，感情事業雙豐收！（健太單身喔）',
-          },
-          {
-            poem: '風調雨順萬事和\n家宅安寧福氣多\n前路光明皆順景\n四方貴人自來扶',
-            meaning: '運勢興旺，無災無難，諸事皆吉，有貴人（健太？）相助！',
-          },
-          {
-            poem: '時來運轉福星臨\n雲開日出照光陰\n凡事不須多掛念\n鴻運自此步步深',
-            meaning: '時運轉佳，先前煩惱將一一化解，從今以後好事接連而來',
-          },
-        ],
-        中吉: [
-          {
-            poem: '春風得意馬蹄疾\n一朝看盡長安花\n雖有小阻不為礙\n終得如意笑哈哈',
-            meaning: '運勢不錯，雖有小波折但終會順利！',
-          },
-          {
-            poem: '雲開霧散見青天\n柳暗花明又一村\n耐心等待好時機\n吉星高照福滿門',
-            meaning: '需要耐心等待，好運即將到來！',
-          },
-          {
-            poem: '雲遮月影尚微明\n行路雖遲未必傾\n靜待東風來助力\n轉機一現便前程',
-            meaning:
-              '眼前雖有小阻礙，但機會漸近，只要沉住氣、堅持下去，便可迎來轉機！',
-          },
-          {
-            poem: '初時波折莫心驚\n守信持恒定有成\n夜盡天明光漸現\n心中自有太平聲',
-            meaning:
-              '雖然起步不易，可能經歷一些小困難，但只要堅持原則、腳踏實地，未來仍會迎來光明與平安！',
-          },
-        ],
-        吉: [
-          {
-            poem: '平平淡淡總是真\n細水長流見真情\n勤勞努力有回報\n小富即安樂融融',
-            meaning: '平淡中見真情，努力會有收穫！',
-          },
-          {
-            poem: '微風徐來波不驚\n底蘊藏龍靜待時\n但將步履多留意\n花開之日自逢時',
-            meaning: '現況平穩，有潛力待發。若肯耐心佈局，未來將有佳機！',
-          },
-          {
-            poem: '草木初榮未見花\n埋根厚土養生涯\n他朝雨露齊滋潤\n一舉繁華滿天下',
-            meaning: '目前為累積基礎之時，不必急著刷寶，收穫將在未來！',
-          },
-          {
-            poem: '路轉峰回不再迷\n前途坦蕩有餘機\n若能自省勤耕種\n喜訊臨門笑開眉',
-            meaning: '歷經迷茫後已見方向，只要繼續努力，收成將至！',
-          },
-        ],
-        凶: [
-          {
-            poem: '陰雲密布遮明月\n風雨欲來山滿樓\n謹慎行事多思量\n靜待烏雲散去時',
-            meaning: '需要謹慎行事，避免冒險，靜待時機！',
-          },
-          {
-            poem: '高樓未固急登臨\n基礎不穩損自身\n欲速則不達此理\n當收心念省前因',
-            meaning:
-              '操之過急恐招損害，應靜心檢視基礎，重新調整節奏，才能再起！',
-          },
-          {
-            poem: '水中撈月空費心\n求之不得更傷神\n回頭是岸真理在\n執迷不悟自沉淪',
-            meaning: '過度執著恐徒勞無功，不妨放手退一步，方可見轉機！',
-          },
-          {
-            poem: '烏雲密布掩晴空\n暗裡藏針步履窮\n莫信他人甜語語\n小心方得過險中',
-            meaning:
-              '運勢不穩，人事有虞。當防虛假承諾，勿輕信旁人，需自保為上！',
-          },
-        ],
-        大凶: [
-          {
-            poem: '路轉峰回不再迷\n前途坦蕩有餘機\n若能自省勤耕種\n喜訊臨門笑開眉',
-            meaning: '今日諸事不宜，宜靜不宜動，耐心等待！',
-          },
-          {
-            poem: '狂風暴雨樹難支\n四顧無人話可依\n欲進一步多險阻\n不如且退莫貪機',
-            meaning: '此時若強行推進，恐有重大損失。宜暫停腳步，等待情勢好轉！',
-          },
-          {
-            poem: '火上加油焰更高\n心亂如麻路難逃\n貴人不現小人至\n禍從口出最為勞',
-            meaning:
-              '人際失和、口舌是非頻繁，宜守口如瓶、避免爭辯。靜則安，動則危！',
-          },
-          {
-            poem: '天昏地暗步難行\n禍起蕭牆自家生\n近憂未了遠災至\n破船更遇打頭風',
-            meaning:
-              '內外交困，連連受挫。此時當以保身為要，切忌冒進或過度期待外援！',
-          },
-        ],
-      };
-
-      const poems = fortunePoems[selectedFortune.name];
-      const poemSeed = `${seed}_poem`;
-      const poemIndex = seededRandom(poemSeed, poems.length);
-      const selectedPoem = poems[poemIndex];
-
-      const embed = new EmbedBuilder()
-        .setTitle(`${selectedFortune.emoji} 今日運勢`)
-        .setDescription(
-          isSelf
-            ? `你的今日運勢籤詩 ${selectedFortune.emoji}`
-            : `**${targetUser.displayName}** 的運勢籤詩`,
-        )
-        .setColor(selectedFortune.color)
-        .addFields(
-          {
-            name: '🏮 運勢等級',
-            value: `**${selectedFortune.name}**`,
-            inline: true,
-          },
-          { name: '📜 籤詩', value: `\`\`\`\n${selectedPoem.poem}\n\`\`\`` },
-          { name: '💭 解籤', value: selectedPoem.meaning },
-        )
-        .setFooter({ text: '每日運勢 • 總之扣曲麗名聲' })
-        .setTimestamp();
-
-      const fortuneAdvice = {
-        大吉: '今日是行動的好日子！大膽衝卷大膽做夢吧！',
-        中吉: '把握機會，有衝有機會！',
-        吉: '保持平常心，得失心不要太重！',
-        凶: '謹慎為上，避免重要決定！',
-        大凶: '今日宜靜不宜動，別衝卷，扣曲麗名聲就好！',
-      };
-      embed.addFields({
-        name: '💡 今日建議',
-        value: fortuneAdvice[selectedFortune.name] || '順其自然，保持平常心！',
-      });
-
-      try {
-        const imagePath = `./public/${selectedFortune.name}.jpg`;
-        const attachment = new AttachmentBuilder(imagePath);
-        embed.setImage(`attachment://${selectedFortune.name}.jpg`);
-        await interaction.reply({
-          embeds: [embed],
-          files: [attachment],
-          ephemeral: true,
-        });
-      } catch {
-        await interaction.reply({ embeds: [embed], ephemeral: true });
-      }
-
-      if (selectedFortune.name === '大吉') {
-        setTimeout(async () => {
-          const celebrations = [
-            '🎉 大吉大利，今天+7！！',
-            '🌟 運勢爆棚！趕快送健太怒濤！',
-            '✨ 今天是你的幸運日！做什麼都會順利～',
-          ];
-          try {
-            await interaction.followUp(
-              celebrations[Math.floor(Math.random() * celebrations.length)],
-            );
-          } catch {}
-        }, 2000);
-      }
-    } catch (error) {
-      console.error('求籤失敗:', error);
-      if (!interaction.replied && !interaction.deferred) {
-        await interaction
-          .reply({
-            content: '❌ 求籤時發生錯誤，請稍後再試！',
-            ephemeral: true,
-          })
-          .catch(() => {});
-      }
-    }
-  }
-
-  async function handleGayIndexCommand(interaction) {
-    const targetUser = interaction.options.getUser('成員') || interaction.user;
+// ============================================================================
+// [GAME] 指令處理
+// ============================================================================
+async function handleFortuneCommand(interaction) {
+  try {
+    const targetUser = interaction.options.getUser("成員") || interaction.user;
     const isSelf = targetUser.id === interaction.user.id;
     const today = new Date().toDateString();
-    const seed = `${targetUser.id}_${today}`;
-    const gayIndex = seededRandom(seed);
+    const seed = `fortune_${targetUser.id}_${today}`;
+    const randomValue = seededRandom(seed, 100);
 
-    const zhMessages = {
-      0: { message: '沒有很gay呢好可惜', color: '#87CEEB', emoji: '😔' },
-      10: { message: '有一點gay味囉！', color: '#DDA0DD', emoji: '😏' },
-      20: { message: '還不正視自己嗎？？？？', color: '#FF69B4', emoji: '🤔' },
-      30: { message: '開始有感覺了呢～', color: '#FF1493', emoji: '😊' },
-      40: {
-        message: '雙就雙不要說自己是直的了！！！',
-        color: '#FF6347',
-        emoji: '😉',
-      },
-      50: { message: '已經超過一半了耶！', color: '#FF4500', emoji: '😘' },
-      60: { message: '很有gay的天份呢！', color: '#FF0000', emoji: '🥰' },
-      70: { message: '非常gay！棒棒的！', color: '#DC143C', emoji: '😍' },
-      80: { message: '超級gay！已經覺醒了！', color: '#B22222', emoji: '🤩' },
-      90: {
-        message: '100%純天然有機Gay！恭喜！',
-        color: '#8B0000',
-        emoji: '🎉',
-      },
-    };
+    const fortuneLevels = [
+      { name: "大吉", probability: 15, color: "#FFD700", emoji: "🌟" },
+      { name: "中吉", probability: 25, color: "#FFA500", emoji: "✨" },
+      { name: "吉", probability: 35, color: "#32CD32", emoji: "🍀" },
+      { name: "凶", probability: 20, color: "#FF6347", emoji: "⚠️" },
+      { name: "大凶", probability: 5, color: "#DC143C", emoji: "💀" },
+    ];
 
-    let selectedMessage = zhMessages[0];
-    for (const t of Object.keys(zhMessages).sort((a, b) => b - a)) {
-      if (gayIndex >= parseInt(t)) {
-        selectedMessage = zhMessages[t];
+    let cumulative = 0;
+    let selectedFortune = fortuneLevels[fortuneLevels.length - 1];
+    for (const level of fortuneLevels) {
+      cumulative += level.probability;
+      if (randomValue < cumulative) {
+        selectedFortune = level;
         break;
       }
     }
 
-    const specialMessages = [
-      '（純屬娛樂，也可以當真）',
-      '（或許不科學測試結果）',
-      '（今日限定結果）',
-      '（AI智缺分析）',
-      '（基於小數據分析）',
-      '（健太的老公們身份組招募中）',
-      '（健太專業認證）',
-      '（Rainbow Power 認證）',
-      '（彩虹能量檢測）',
-      '（Gay達檢測儀）',
-    ];
-    const randomSpecialMessage =
-      specialMessages[Math.floor(Math.random() * specialMessages.length)];
+    const fortunePoems = {
+      大吉: [
+        {
+          poem: "紫氣東來照門第\n貴人相助事事宜\n財運亨通心願遂\n平安喜樂福無疆",
+          meaning: "今日運勢極佳，會有貴人相助，凡事順利！",
+        },
+        {
+          poem: "鳳凰展翅上青天\n金榜題名喜連連\n桃花朵朵迎春開\n富貴榮華樂無邊",
+          meaning: "好運連連，感情事業雙豐收！（健太單身喔）",
+        },
+        {
+          poem: "風調雨順萬事和\n家宅安寧福氣多\n前路光明皆順景\n四方貴人自來扶",
+          meaning: "運勢興旺，無災無難，諸事皆吉，有貴人（健太？）相助！",
+        },
+        {
+          poem: "時來運轉福星臨\n雲開日出照光陰\n凡事不須多掛念\n鴻運自此步步深",
+          meaning: "時運轉佳，先前煩惱將一一化解，從今以後好事接連而來",
+        },
+      ],
+      中吉: [
+        {
+          poem: "春風得意馬蹄疾\n一朝看盡長安花\n雖有小阻不為礙\n終得如意笑哈哈",
+          meaning: "運勢不錯，雖有小波折但終會順利！",
+        },
+        {
+          poem: "雲開霧散見青天\n柳暗花明又一村\n耐心等待好時機\n吉星高照福滿門",
+          meaning: "需要耐心等待，好運即將到來！",
+        },
+        {
+          poem: "雲遮月影尚微明\n行路雖遲未必傾\n靜待東風來助力\n轉機一現便前程",
+          meaning:
+            "眼前雖有小阻礙，但機會漸近，只要沉住氣、堅持下去，便可迎來轉機！",
+        },
+        {
+          poem: "初時波折莫心驚\n守信持恒定有成\n夜盡天明光漸現\n心中自有太平聲",
+          meaning:
+            "雖然起步不易，可能經歷一些小困難，但只要堅持原則、腳踏實地，未來仍會迎來光明與平安！",
+        },
+      ],
+      吉: [
+        {
+          poem: "平平淡淡總是真\n細水長流見真情\n勤勞努力有回報\n小富即安樂融融",
+          meaning: "平淡中見真情，努力會有收穫！",
+        },
+        {
+          poem: "微風徐來波不驚\n底蘊藏龍靜待時\n但將步履多留意\n花開之日自逢時",
+          meaning: "現況平穩，有潛力待發。若肯耐心佈局，未來將有佳機！",
+        },
+        {
+          poem: "草木初榮未見花\n埋根厚土養生涯\n他朝雨露齊滋潤\n一舉繁華滿天下",
+          meaning: "目前為累積基礎之時，不必急著刷寶，收穫將在未來！",
+        },
+        {
+          poem: "路轉峰回不再迷\n前途坦蕩有餘機\n若能自省勤耕種\n喜訊臨門笑開眉",
+          meaning: "歷經迷茫後已見方向，只要繼續努力，收成將至！",
+        },
+      ],
+      凶: [
+        {
+          poem: "陰雲密布遮明月\n風雨欲來山滿樓\n謹慎行事多思量\n靜待烏雲散去時",
+          meaning: "需要謹慎行事，避免冒險，靜待時機！",
+        },
+        {
+          poem: "高樓未固急登臨\n基礎不穩損自身\n欲速則不達此理\n當收心念省前因",
+          meaning: "操之過急恐招損害，應靜心檢視基礎，重新調整節奏，才能再起！",
+        },
+        {
+          poem: "水中撈月空費心\n求之不得更傷神\n回頭是岸真理在\n執迷不悟自沉淪",
+          meaning: "過度執著恐徒勞無功，不妨放手退一步，方可見轉機！",
+        },
+        {
+          poem: "烏雲密布掩晴空\n暗裡藏針步履窮\n莫信他人甜語語\n小心方得過險中",
+          meaning: "運勢不穩，人事有虞。當防虛假承諾，勿輕信旁人，需自保為上！",
+        },
+      ],
+      大凶: [
+        {
+          poem: "路轉峰回不再迷\n前途坦蕩有餘機\n若能自省勤耕種\n喜訊臨門笑開眉",
+          meaning: "今日諸事不宜，宜靜不宜動，耐心等待！",
+        },
+        {
+          poem: "狂風暴雨樹難支\n四顧無人話可依\n欲進一步多險阻\n不如且退莫貪機",
+          meaning: "此時若強行推進，恐有重大損失。宜暫停腳步，等待情勢好轉！",
+        },
+        {
+          poem: "火上加油焰更高\n心亂如麻路難逃\n貴人不現小人至\n禍從口出最為勞",
+          meaning:
+            "人際失和、口舌是非頻繁，宜守口如瓶、避免爭辯。靜則安，動則危！",
+        },
+        {
+          poem: "天昏地暗步難行\n禍起蕭牆自家生\n近憂未了遠災至\n破船更遇打頭風",
+          meaning:
+            "內外交困，連連受挫。此時當以保身為要，切忌冒進或過度期待外援！",
+        },
+      ],
+    };
 
-    const levels = ['新手', '進階', '專家', '大師', '傳說', '神話'];
-    const level =
-      gayIndex <= 15
-        ? levels[0]
-        : gayIndex <= 30
-          ? levels[1]
-          : gayIndex <= 50
-            ? levels[2]
-            : gayIndex <= 70
-              ? levels[3]
-              : gayIndex <= 90
-                ? levels[4]
-                : levels[5];
+    const poems = fortunePoems[selectedFortune.name];
+    const poemSeed = `${seed}_poem`;
+    const poemIndex = seededRandom(poemSeed, poems.length);
+    const selectedPoem = poems[poemIndex];
 
     const embed = new EmbedBuilder()
-      .setTitle(`${selectedMessage.emoji} 同性戀指數測試結果`)
+      .setTitle(`${selectedFortune.emoji} 今日運勢`)
       .setDescription(
         isSelf
-          ? `你的今日同性戀指數測試結果 ${selectedMessage.emoji}`
-          : `**${targetUser.displayName}** 的今日同性戀指數`,
+          ? `你的今日運勢籤詩 ${selectedFortune.emoji}`
+          : `**${targetUser.displayName}** 的運勢籤詩`,
       )
-      .setColor(selectedMessage.color)
+      .setColor(selectedFortune.color)
       .addFields(
-        { name: '🏳️‍🌈 同性戀指數', value: `**${gayIndex}%**`, inline: true },
-        { name: '💬 評語', value: selectedMessage.message, inline: true },
-        { name: '📊 等級', value: level, inline: true },
+        {
+          name: "🏮 運勢等級",
+          value: `**${selectedFortune.name}**`,
+          inline: true,
+        },
+        { name: "📜 籤詩", value: `\`\`\`\n${selectedPoem.poem}\n\`\`\`` },
+        { name: "💭 解籤", value: selectedPoem.meaning },
       )
-      .setFooter({ text: `${randomSpecialMessage} • 結果每日更新` })
+      .setFooter({ text: "每日運勢 • 總之扣曲麗名聲" })
       .setTimestamp();
 
-    if (gayIndex === 100) {
-      embed.addFields({
-        name: '🎊 特殊成就解鎖',
-        value: '🏆 **彩虹大師** - 你是今日的Gay王者！',
+    const fortuneAdvice = {
+      大吉: "今日是行動的好日子！大膽衝卷大膽做夢吧！",
+      中吉: "把握機會，有衝有機會！",
+      吉: "保持平常心，得失心不要太重！",
+      凶: "謹慎為上，避免重要決定！",
+      大凶: "今日宜靜不宜動，別衝卷，扣曲麗名聲就好！",
+    };
+    embed.addFields({
+      name: "💡 今日建議",
+      value: fortuneAdvice[selectedFortune.name] || "順其自然，保持平常心！",
+    });
+
+    try {
+      const imagePath = `./public/${selectedFortune.name}.jpg`;
+      const attachment = new AttachmentBuilder(imagePath);
+      embed.setImage(`attachment://${selectedFortune.name}.jpg`);
+      await interaction.reply({
+        embeds: [embed],
+        files: [attachment],
+        ephemeral: true,
       });
+    } catch {
+      await interaction.reply({ embeds: [embed], ephemeral: true });
     }
 
-    embed.addFields({ name: '📈 進度條', value: createProgressBar(gayIndex) });
-
-    await interaction.reply({ embeds: [embed] });
-
-    if (gayIndex >= 80) {
+    if (selectedFortune.name === "大吉") {
       setTimeout(async () => {
         const celebrations = [
-          '🌈 恭喜高分！',
-          '🎉 Gay度爆表！',
-          '🏳️‍🌈 彩虹認證！',
-          '✨ 閃閃發光！',
-          '🦄 獨角獸等級！',
-          '💖 愛就是愛！',
-          '🌟 你就是明星！',
+          "🎉 大吉大利，今天+7！！",
+          "🌟 運勢爆棚！趕快送健太怒濤！",
+          "✨ 今天是你的幸運日！做什麼都會順利～",
         ];
         try {
           await interaction.followUp(
@@ -1358,1154 +1218,1276 @@ function buildExpeditionFormatContent(boss, date, time) {
         } catch {}
       }, 2000);
     }
+  } catch (error) {
+    console.error("求籤失敗:", error);
+    if (!interaction.replied && !interaction.deferred) {
+      await interaction
+        .reply({
+          content: "❌ 求籤時發生錯誤，請稍後再試！",
+          ephemeral: true,
+        })
+        .catch(() => {});
+    }
   }
+}
 
-  async function handleDailyRankingCommand(interaction) {
-    await interaction.deferReply();
-    try {
-      const guild = interaction.guild;
-      const members = await guild.members.fetch();
-      const today = new Date().toDateString();
-      const rankings = [];
-      members.forEach((member) => {
-        if (member.user.bot) return;
-        const gayIndex = seededRandom(`${member.id}_${today}`);
-        rankings.push({
-          user: member.user,
-          index: gayIndex,
-          displayName: member.displayName,
-        });
-      });
-      rankings.sort((a, b) => b.index - a.index);
+async function handleGayIndexCommand(interaction) {
+  const targetUser = interaction.options.getUser("成員") || interaction.user;
+  const isSelf = targetUser.id === interaction.user.id;
+  const today = new Date().toDateString();
+  const seed = `${targetUser.id}_${today}`;
+  const gayIndex = seededRandom(seed);
 
-      const embed = new EmbedBuilder()
-        .setTitle('🏳️‍🌈 今日同性戀指數排行榜')
-        .setColor('#FF69B4')
-        .setDescription('今天誰最Gay呢？讓我們來看看排行榜！')
-        .setTimestamp();
+  const zhMessages = {
+    0: { message: "沒有很gay呢好可惜", color: "#87CEEB", emoji: "😔" },
+    10: { message: "有一點gay味囉！", color: "#DDA0DD", emoji: "😏" },
+    20: { message: "還不正視自己嗎？？？？", color: "#FF69B4", emoji: "🤔" },
+    30: { message: "開始有感覺了呢～", color: "#FF1493", emoji: "😊" },
+    40: {
+      message: "雙就雙不要說自己是直的了！！！",
+      color: "#FF6347",
+      emoji: "😉",
+    },
+    50: { message: "已經超過一半了耶！", color: "#FF4500", emoji: "😘" },
+    60: { message: "很有gay的天份呢！", color: "#FF0000", emoji: "🥰" },
+    70: { message: "非常gay！棒棒的！", color: "#DC143C", emoji: "😍" },
+    80: { message: "超級gay！已經覺醒了！", color: "#B22222", emoji: "🤩" },
+    90: {
+      message: "100%純天然有機Gay！恭喜！",
+      color: "#8B0000",
+      emoji: "🎉",
+    },
+  };
 
-      const medals = ['🥇', '🥈', '🥉'];
-      let rankingText = '';
-      rankings.slice(0, 10).forEach((entry, index) => {
-        const medal = medals[index] || `${index + 1}.`;
-        const rainbow =
-          entry.index >= 80
-            ? '🌈'
-            : entry.index >= 60
-              ? '✨'
-              : entry.index >= 40
-                ? '💫'
-                : '';
-        rankingText += `${medal} **${entry.displayName}** - ${entry.index}% ${rainbow}\n`;
-      });
-
-      embed.addFields({
-        name: '🏆 排行榜 Top 10',
-        value: rankingText || '沒有數據',
-      });
-
-      const averageIndex = Math.round(
-        rankings.reduce((sum, e) => sum + e.index, 0) / rankings.length,
-      );
-      embed.addFields(
-        { name: '📊 平均指數', value: `${averageIndex}%`, inline: true },
-        {
-          name: '📈 最高指數',
-          value: `${rankings[0]?.index || 0}%`,
-          inline: true,
-        },
-        {
-          name: '📉 最低指數',
-          value: `${rankings[rankings.length - 1]?.index || 0}%`,
-          inline: true,
-        },
-      );
-      embed.setFooter({ text: '排行榜每日更新 | 純屬娛樂' });
-      await interaction.editReply({ embeds: [embed] });
-    } catch (error) {
-      console.error('排行榜錯誤:', error);
-      await interaction.editReply('❌ 生成排行榜時發生錯誤！');
+  let selectedMessage = zhMessages[0];
+  for (const t of Object.keys(zhMessages).sort((a, b) => b - a)) {
+    if (gayIndex >= parseInt(t)) {
+      selectedMessage = zhMessages[t];
+      break;
     }
   }
 
-  async function handleStatsCommand(interaction) {
-    await interaction.deferReply();
-    try {
-      const guild = interaction.guild;
-      const members = await guild.members.fetch();
-      const today = new Date().toDateString();
-      const stats = {
-        total: 0,
-        ranges: { '0-20': 0, '21-40': 0, '41-60': 0, '61-80': 0, '81-100': 0 },
-        perfect: 0,
-      };
-
-      members.forEach((member) => {
-        if (member.user.bot) return;
-        const gayIndex = seededRandom(`${member.id}_${today}`);
-        stats.total++;
-        if (gayIndex === 100) stats.perfect++;
-        if (gayIndex <= 20) stats.ranges['0-20']++;
-        else if (gayIndex <= 40) stats.ranges['21-40']++;
-        else if (gayIndex <= 60) stats.ranges['41-60']++;
-        else if (gayIndex <= 80) stats.ranges['61-80']++;
-        else stats.ranges['81-100']++;
-      });
-
-      const embed = new EmbedBuilder()
-        .setTitle('📊 伺服器同性戀指數統計')
-        .setColor('#9932CC')
-        .setDescription(`基於 ${stats.total} 位成員的今日數據`)
-        .setTimestamp();
-
-      let rangeText = '';
-      Object.entries(stats.ranges).forEach(([range, count]) => {
-        const percentage = ((count / stats.total) * 100).toFixed(1);
-        const bar = '█'.repeat(Math.round(percentage / 5));
-        rangeText += `**${range}%**: ${count} 人 (${percentage}%)\n${bar}\n\n`;
-      });
-      embed.addFields({ name: '🏳️‍🌈 指數分布', value: rangeText });
-      embed.addFields(
-        { name: '👥 總測試人數', value: `${stats.total} 人`, inline: true },
-        {
-          name: '🏆 完美指數(100%)',
-          value: `${stats.perfect} 人`,
-          inline: true,
-        },
-        { name: '📅 統計日期', value: today, inline: true },
-      );
-
-      const totalGayPercentage = (
-        ((stats.ranges['61-80'] + stats.ranges['81-100']) / stats.total) *
-        100
-      ).toFixed(1);
-      const comment =
-        totalGayPercentage >= 50
-          ? '🌈 這個伺服器很有彩虹氛圍呢！'
-          : totalGayPercentage >= 30
-            ? '✨ 適度的彩虹能量！'
-            : '💫 還有很大的彩虹潛力！';
-      embed.addFields({
-        name: '💭 AI分析',
-        value: `高指數成員佔 ${totalGayPercentage}%\n${comment}`,
-      });
-      embed.setFooter({ text: '統計數據每日更新 | 純屬娛樂，請勿當真' });
-      await interaction.editReply({ embeds: [embed] });
-    } catch (error) {
-      console.error('統計錯誤:', error);
-      await interaction.editReply('❌ 生成統計時發生錯誤！');
-    }
-  }
-
-  async function handleHelpCommand(interaction) {
-    const embed = new EmbedBuilder()
-      .setTitle('🤖健太的機器人使用說明')
-      .setColor('#FF1493')
-      .setDescription('BOSS 遠征 + 娛樂小遊戲 + 會員管理，一站搞定！')
-      .addFields(
-        {
-          name: '⚔️ BOSS 遠征',
-          value:
-            '`/遠征面板` - 發送建立遠征隊的面板（管理員）\n' +
-            '`/確認團員` - 選擇最多 12 位團員，前一天自動 tag 提醒（也可用置頂訊息的按鈕）\n' +
-            '`/更改時間` - 更改目前遠征頻道的時間（團長／管理員）\n' +
-            '`/結束遠征` - 結束並刪除目前遠征頻道（團長／管理員）\n' +
-            '`/pin` - 設定此頻道的置底訊息',
-        },
-        {
-          name: '🎮 娛樂小遊戲',
-          value:
-            '`/同性戀指數 [成員]` - 測試同性戀指數\n' +
-            '`/本日運勢 [成員]` - 抽取今日運勢籤詩\n' +
-            '`/每日排行` - 查看今日同性戀指數排行榜\n' +
-            '`/統計` - 查看伺服器統計\n' +
-            '`/猜數字` - 猜數字遊戲',
-        },
-        {
-          name: '💒 結婚系統（一夫多妻／一妻多夫）',
-          value:
-            '`/propose @成員` - 求婚（可以有多個配偶）\n' +
-            '`/marriage [成員]` - 查看配偶名單\n' +
-            '`/divorce @成員` - 指定某位配偶申請離婚',
-        },
-        {
-          name: '🛡️ 管理指令（限管理員）',
-          value:
-            '`/warn` `/check_warn` `/delete_warn` `/clear_all_warn`\n' +
-            '`/kick` `/ban` `/mute` `/unmute`',
-        },
-      )
-      .setFooter({ text: 'Made with 🌈 | Unified v1.0.0' })
-      .setTimestamp();
-    await interaction.reply({ embeds: [embed] });
-  }
-
-  // ---- 小遊戲：猜數字
-  async function handleGuessNumber(interaction) {
-    const userGuess = interaction.options.getInteger('數字');
-    const today = new Date().toDateString();
-    const seed = `guess_${interaction.user.id}_${today}`;
-    const correctNumber = seededRandom(seed, 10) + 1;
-    const isCorrect = userGuess === correctNumber;
-
-    const embed = new EmbedBuilder()
-      .setTitle('🎯 猜數字遊戲')
-      .setDescription(
-        `你猜的數字: **${userGuess}**\n今日正確答案: **${correctNumber}**`,
-      )
-      .setColor(isCorrect ? '#00FF00' : '#FF6B6B')
-      .addFields({
-        name: isCorrect ? '🎉 結果' : '💔 結果',
-        value: isCorrect
-          ? '**恭喜猜對了！** 🎊\n你真是太厲害了！'
-          : '**很可惜猜錯了！** 😅\n明天再來挑戰吧！',
-      })
-      .setFooter({ text: '每日答案固定 • 純屬娛樂' })
-      .setTimestamp();
-    await interaction.reply({ embeds: [embed], ephemeral: true });
-
-    if (isCorrect) {
-      setTimeout(async () => {
-        try {
-          await interaction.followUp({
-            content: '🎯 太神了！一次就猜中！',
-            ephemeral: true,
-          });
-        } catch {}
-      }, 1500);
-    }
-  }
-
-  // ============================================================================
-  // [MEMBER MANAGEMENT] 指令處理
-  // ============================================================================
-  async function handleWarnCommand(interaction) {
-    const user = interaction.options.getUser('user');
-    const reason = interaction.options.getString('reason');
-    const warning = await addWarning(
-      user,
-      interaction.member,
-      reason,
-      interaction.guild,
-    );
-    const userData = getUserWarnings(user.id);
-    const embed = new EmbedBuilder()
-      .setColor('#FF6B6B')
-      .setTitle('⚠️ 成員已被警告')
-      .addFields(
-        { name: '成員', value: `${user}`, inline: true },
-        { name: '管理員', value: `${interaction.member}`, inline: true },
-        { name: '原因', value: reason },
-        { name: '警告次數', value: `${userData.count}次`, inline: true },
-        { name: '警告ID', value: `${warning.id}`, inline: true },
-      )
-      .setTimestamp();
-    await interaction.reply({ embeds: [embed] });
-  }
-
-  async function handleCheckWarnCommand(interaction) {
-    const user = interaction.options.getUser('user');
-    const userData = getUserWarnings(user.id);
-    if (userData.count === 0) {
-      await interaction.reply({
-        content: `📋 ${user.tag} 沒有任何警告紀錄。`,
-        flags: 64,
-      });
-      return;
-    }
-    const embed = new EmbedBuilder()
-      .setColor('#FFA500')
-      .setTitle(`📋 ${user.tag} 的警告紀錄`)
-      .setDescription(`總警告次數: ${userData.count}`)
-      .setThumbnail(user.displayAvatarURL());
-
-    userData.warnings.slice(-5).forEach((warning) => {
-      const moderator = interaction.guild.members.cache.get(warning.moderator);
-      embed.addFields({
-        name: `警告 #${warning.id}`,
-        value: `**原因:** ${warning.reason}\n**管理員:** ${
-          moderator ? moderator.displayName : '未知'
-        }\n**時間:** ${new Date(warning.timestamp).toLocaleString('zh-TW')}`,
-      });
-    });
-    if (userData.warnings.length > 5) {
-      embed.setFooter({
-        text: `顯示最近五條警告，共${userData.warnings.length}條`,
-      });
-    }
-    await interaction.reply({ embeds: [embed], flags: 64 });
-  }
-
-  async function handleDeleteWarnCommand(interaction) {
-    const user = interaction.options.getUser('user');
-    const warningId = interaction.options.getInteger('warn_id');
-    const userData = getUserWarnings(user.id);
-    const idx = userData.warnings.findIndex((w) => w.id === warningId);
-    if (idx === -1) {
-      await interaction.reply({
-        content: '❌ 找不到指定的警告ID！',
-        flags: 64,
-      });
-      return;
-    }
-    userData.warnings.splice(idx, 1);
-    userData.count = userData.warnings.length;
-    saveWarnings();
-    await interaction.reply({
-      content: `✅ 已刪除 ${user.tag} 的警告 #${warningId}`,
-      flags: 64,
-    });
-  }
-
-  async function handleClearAllWarnCommand(interaction) {
-    const user = interaction.options.getUser('user');
-    const userData = getUserWarnings(user.id);
-    if (userData.count === 0) {
-      await interaction.reply({
-        content: `📋 ${user.tag} 沒有任何警告紀錄需要清除。`,
-        flags: 64,
-      });
-      return;
-    }
-    const originalCount = userData.count;
-    delete warningsData[user.id];
-    saveWarnings();
-    await interaction.reply({
-      content: `✅ 已清除 ${user.tag} 的所有警告紀錄！（共 ${originalCount} 條）`,
-      flags: 64,
-    });
-  }
-
-  async function handleKickCommand(interaction) {
-    const user = interaction.options.getUser('user');
-    const reason = interaction.options.getString('reason') || '未提供原因';
-    const member = interaction.guild.members.cache.get(user.id);
-    if (!member) {
-      await interaction.reply({ content: '❌ 成員不在伺服器中！', flags: 64 });
-      return;
-    }
-    if (!member.kickable) {
-      await interaction.reply({ content: '❌ 無法踢出此成員！', flags: 64 });
-      return;
-    }
-    try {
-      await member.kick(reason);
-      const embed = new EmbedBuilder()
-        .setColor('#FF8C00')
-        .setTitle('👢 成員已被踢出')
-        .addFields(
-          { name: '成員', value: `${user.tag}`, inline: true },
-          { name: '管理員', value: `${interaction.member}`, inline: true },
-          { name: '原因', value: reason },
-        )
-        .setTimestamp();
-      await interaction.reply({ embeds: [embed] });
-    } catch (error) {
-      console.error('踢出失敗:', error);
-      await interaction.reply({
-        content: '❌ 踢出成員時發生錯誤！',
-        flags: 64,
-      });
-    }
-  }
-
-  async function handleBanCommand(interaction) {
-    const user = interaction.options.getUser('user');
-    const reason = interaction.options.getString('reason') || '未提供原因';
-    const member = interaction.guild.members.cache.get(user.id);
-    if (member && !member.bannable) {
-      await interaction.reply({ content: '❌ 無法封鎖此成員！', flags: 64 });
-      return;
-    }
-    try {
-      await interaction.guild.members.ban(user, { reason });
-      const embed = new EmbedBuilder()
-        .setColor('#DC143C')
-        .setTitle('🔨 成員已被封鎖')
-        .addFields(
-          { name: '成員', value: `${user.tag}`, inline: true },
-          { name: '管理員', value: `${interaction.member}`, inline: true },
-          { name: '原因', value: reason },
-        )
-        .setTimestamp();
-      await interaction.reply({ embeds: [embed] });
-    } catch (error) {
-      console.error('封鎖失敗:', error);
-      await interaction.reply({
-        content: '❌ 封鎖成員時發生錯誤！',
-        flags: 64,
-      });
-    }
-  }
-
-  async function handleMuteCommand(interaction) {
-    const user = interaction.options.getUser('user');
-    const duration = interaction.options.getInteger('mute_duration');
-    const reason = interaction.options.getString('reason') || '未提供原因';
-    const member = interaction.guild.members.cache.get(user.id);
-    if (!member) {
-      await interaction.reply({ content: '❌ 成員不在伺服器中！', flags: 64 });
-      return;
-    }
-    if (!member.moderatable) {
-      await interaction.reply({ content: '❌ 無法禁言此成員！', flags: 64 });
-      return;
-    }
-    if (duration <= 0 || duration > 40320) {
-      await interaction.reply({
-        content: '❌ 禁言時長必須在1-40320分鐘之間！',
-        flags: 64,
-      });
-      return;
-    }
-    try {
-      const timeoutDuration = duration * 60 * 1000;
-      mutedMembers[user.id] = {
-        guildId: interaction.guild.id,
-        reason,
-        duration,
-        unmuteTime: Date.now() + timeoutDuration,
-        mutedBy: interaction.member.id,
-        mutedAt: Date.now(),
-      };
-      saveMutedMembers();
-      await member.timeout(timeoutDuration, reason);
-
-      const embed = new EmbedBuilder()
-        .setColor('#9932CC')
-        .setTitle('🔇 成員已被禁言')
-        .addFields(
-          { name: '成員', value: `${user.tag}`, inline: true },
-          { name: '管理員', value: `${interaction.member}`, inline: true },
-          { name: '時長', value: `${duration}分鐘`, inline: true },
-          { name: '原因', value: reason },
-        )
-        .setTimestamp();
-      await interaction.reply({ embeds: [embed] });
-    } catch (error) {
-      console.error('禁言失敗:', error);
-      await interaction.reply({
-        content: '❌ 禁言成員時發生錯誤！',
-        flags: 64,
-      });
-    }
-  }
-
-  async function handleUnmuteCommand(interaction) {
-    const user = interaction.options.getUser('user');
-    const member = interaction.guild.members.cache.get(user.id);
-    if (!member) {
-      await interaction.reply({ content: '❌ 成員不在伺服器中！', flags: 64 });
-      return;
-    }
-    if (!member.isCommunicationDisabled()) {
-      await interaction.reply({ content: '❌ 此成員沒有被禁言！', flags: 64 });
-      return;
-    }
-    try {
-      await member.timeout(null);
-      if (mutedMembers[user.id]) {
-        delete mutedMembers[user.id];
-        saveMutedMembers();
-      }
-      const embed = new EmbedBuilder()
-        .setColor('#32CD32')
-        .setTitle('🔊 成員禁言已解除')
-        .addFields(
-          { name: '成員', value: `${user.tag}`, inline: true },
-          { name: '管理員', value: `${interaction.member}`, inline: true },
-        )
-        .setTimestamp();
-      await interaction.reply({ embeds: [embed] });
-    } catch (error) {
-      console.error('解除禁言失敗:', error);
-      await interaction.reply({
-        content: '❌ 解除禁言時發生錯誤！',
-        flags: 64,
-      });
-    }
-  }
-
-  async function handleProposeCommand(interaction) {
-    const proposer = interaction.user;
-    const target = interaction.options.getUser('user');
-    if (proposer.id === target.id) {
-      await interaction.reply({
-        content: '❌ 你不能對自己求婚啦！',
-        flags: 64,
-      });
-      return;
-    }
-    if (isMarriedTo(proposer.id, target.id)) {
-      await interaction.reply({
-        content: '❌ 你們已經是夫妻了！',
-        flags: 64,
-      });
-      return;
-    }
-    const proposalId = `${proposer.id}_${target.id}_${Date.now()}`;
-    proposalData[proposalId] = {
-      proposer: proposer.id,
-      target: target.id,
-      timestamp: Date.now(),
-      guildId: interaction.guild.id,
-    };
-    saveProposals();
-
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId(`accept_${proposalId}`)
-        .setLabel('💍 接受')
-        .setStyle(ButtonStyle.Success),
-      new ButtonBuilder()
-        .setCustomId(`reject_${proposalId}`)
-        .setLabel('💔 拒絕')
-        .setStyle(ButtonStyle.Danger),
-    );
-    const embed = new EmbedBuilder()
-      .setColor('#FF69B4')
-      .setTitle('💍 求婚通知')
-      .setDescription(`${proposer} 向 ${target} 求婚！`)
-      .addFields(
-        { name: '💕 求婚訊息', value: `${target}，你願意和我結婚嗎？` },
-        { name: '⏰ 有效時間', value: '30分鐘' },
-      )
-      .setTimestamp();
-    await interaction.reply({ embeds: [embed], components: [row] });
-  }
-
-  async function handleMarriageCommand(interaction) {
-    const targetUser = interaction.options.getUser('user') || interaction.user;
-    const spouses = getSpouses(targetUser.id);
-    if (spouses.length === 0) {
-      const embed = new EmbedBuilder()
-        .setColor('#808080')
-        .setTitle('💔 單身狀態')
-        .setDescription(`${targetUser.displayName} 目前是單身狀態`)
-        .setTimestamp();
-      await interaction.reply({ embeds: [embed], flags: 64 });
-      return;
-    }
-
-    const lines = [];
-    for (const m of spouses) {
-      const member = await interaction.guild.members
-        .fetch(m.spouse)
-        .catch(() => null);
-      const name = member ? member.displayName : `未知使用者 (${m.spouse})`;
-      const date = new Date(m.marriageDate).toLocaleString('zh-TW');
-      lines.push(`💕 **${name}**\n　　結婚日期：${date}`);
-    }
-
-    const embed = new EmbedBuilder()
-      .setColor('#FFD700')
-      .setTitle(`💕 ${targetUser.displayName} 的婚姻狀態`)
-      .setDescription(`共有 **${spouses.length}** 位配偶`)
-      .addFields({ name: '配偶名單', value: lines.join('\n\n') })
-      .setTimestamp();
-    await interaction.reply({ embeds: [embed], flags: 64 });
-  }
-
-  async function handleDivorceCommand(interaction) {
-    const user = interaction.user;
-    const target = interaction.options.getUser('user');
-    if (!isMarriedTo(user.id, target.id)) {
-      await interaction.reply({
-        content: `❌ 你和 ${target} 沒有婚姻關係！`,
-        flags: 64,
-      });
-      return;
-    }
-    const divorceId = `${user.id}_${target.id}_${Date.now()}`;
-    divorceData[divorceId] = {
-      applicant: user.id,
-      spouse: target.id,
-      timestamp: Date.now(),
-      guildId: interaction.guild.id,
-    };
-    saveDivorces();
-
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId(`divorce_accept_${divorceId}`)
-        .setLabel('💔 同意離婚')
-        .setStyle(ButtonStyle.Danger),
-      new ButtonBuilder()
-        .setCustomId(`divorce_reject_${divorceId}`)
-        .setLabel('💕 拒絕離婚')
-        .setStyle(ButtonStyle.Success),
-    );
-    const embed = new EmbedBuilder()
-      .setColor('#8B4513')
-      .setTitle('💔 離婚申請')
-      .setDescription(`${user} 向 ${target} 提出離婚申請`)
-      .addFields({ name: '⏰ 有效時間', value: '30分鐘' })
-      .setTimestamp();
-    await interaction.reply({ embeds: [embed], components: [row] });
-  }
-
-  // ============================================================================
-  // [MEMBER MANAGEMENT] 按鈕分發
-  // ============================================================================
-  async function handleProposalButtons(interaction, customId) {
-    const action = customId.startsWith('accept_') ? 'accept' : 'reject';
-    const proposalId = customId.substring(7);
-    const proposal = proposalData[proposalId];
-    if (!proposal || interaction.user.id !== proposal.target) {
-      await interaction.reply({ content: '❌ 無效的操作！', flags: 64 });
-      return;
-    }
-    if (action === 'accept') {
-      const alreadyMarried = isMarriedTo(proposal.proposer, proposal.target);
-      createMarriage(proposal.proposer, proposal.target);
-      delete proposalData[proposalId];
-      saveProposals();
-      await interaction.update({
-        embeds: [
-          new EmbedBuilder()
-            .setColor('#FFD700')
-            .setTitle(alreadyMarried ? '💕 已經是夫妻了' : '🎉 結婚公告')
-            .setDescription(
-              alreadyMarried ? '你們早就結婚了！' : '恭喜結為夫妻！',
-            )
-            .setTimestamp(),
-        ],
-        components: [],
-      });
-    } else {
-      delete proposalData[proposalId];
-      saveProposals();
-      await interaction.update({
-        embeds: [
-          new EmbedBuilder()
-            .setColor('#FF6B6B')
-            .setTitle('💔 求婚被拒絕')
-            .setTimestamp(),
-        ],
-        components: [],
-      });
-    }
-  }
-
-  async function handleDivorceButtons(interaction, customId) {
-    const action = customId.startsWith('divorce_accept_') ? 'accept' : 'reject';
-    const divorceId = customId.substring(15);
-    const divorce = divorceData[divorceId];
-    if (!divorce || interaction.user.id !== divorce.spouse) {
-      await interaction.reply({ content: '❌ 無效的操作！', flags: 64 });
-      return;
-    }
-    if (action === 'accept') {
-      deleteMarriage(divorce.applicant, divorce.spouse);
-      delete divorceData[divorceId];
-      saveDivorces();
-      await interaction.update({
-        embeds: [
-          new EmbedBuilder()
-            .setColor('#8B4513')
-            .setTitle('📋 離婚證明')
-            .setDescription('離婚手續已完成')
-            .setTimestamp(),
-        ],
-        components: [],
-      });
-    } else {
-      delete divorceData[divorceId];
-      saveDivorces();
-      await interaction.update({
-        embeds: [
-          new EmbedBuilder()
-            .setColor('#32CD32')
-            .setTitle('💕 離婚申請被拒絕')
-            .setTimestamp(),
-        ],
-        components: [],
-      });
-    }
-  }
-
-  // ============================================================================
-  // 所有 Slash 指令定義（會全域註冊）
-  // ============================================================================
-  const commands = [
-    // ---- 遠征 / 工具 ----
-    new SlashCommandBuilder()
-      .setName('pin')
-      .setDescription('設定此頻道的置底訊息')
-      .addStringOption((o) =>
-        o.setName('content').setDescription('置底訊息內容').setRequired(true),
-      ),
-    new SlashCommandBuilder()
-      .setName('遠征面板')
-      .setDescription('發送建立遠征隊的面板（管理員）'),
-    new SlashCommandBuilder()
-      .setName('結束遠征')
-      .setDescription('結束目前這個遠征頻道並刪除（限團長或管理員）'),
-    new SlashCommandBuilder()
-      .setName('更改時間')
-      .setDescription('更改目前這個遠征頻道的時間（限團長或管理員）'),
-    new SlashCommandBuilder()
-      .setName('確認團員')
-      .setDescription('選擇這次遠征的團員（最多 12 人，限團長或管理員）'),
-
-    // ---- GAME (中文) ----
-    new SlashCommandBuilder()
-      .setName('同性戀指數')
-      .setDescription('測試同性戀指數（純娛樂）')
-      .addUserOption((o) =>
-        o.setName('成員').setDescription('要測試的成員（不填則測試自己）'),
-      ),
-    new SlashCommandBuilder()
-      .setName('每日排行')
-      .setDescription('查看今日同性戀指數排行榜'),
-    new SlashCommandBuilder()
-      .setName('統計')
-      .setDescription('查看伺服器同性戀指數統計'),
-    new SlashCommandBuilder()
-      .setName('幫助')
-      .setDescription('查看機器人使用說明'),
-    new SlashCommandBuilder()
-      .setName('本日運勢')
-      .setDescription('查看本日運勢')
-      .addUserOption((o) =>
-        o.setName('成員').setDescription('為其他成員求籤（不填寫則為自己）'),
-      ),
-    new SlashCommandBuilder()
-      .setName('猜數字')
-      .setDescription('猜數字遊戲（1-10）')
-      .addIntegerOption((o) =>
-        o
-          .setName('數字')
-          .setDescription('猜一個1-10的數字')
-          .setRequired(true)
-          .setMinValue(1)
-          .setMaxValue(1000),
-      ),
-
-    // ---- MEMBER MANAGEMENT ----
-    new SlashCommandBuilder()
-      .setName('warn')
-      .setDescription('警告成員')
-      .addUserOption((o) =>
-        o.setName('user').setDescription('要警告的成員').setRequired(true),
-      )
-      .addStringOption((o) =>
-        o.setName('reason').setDescription('警告原因').setRequired(true),
-      ),
-    new SlashCommandBuilder()
-      .setName('check_warn')
-      .setDescription('查看成員警告紀錄')
-      .addUserOption((o) =>
-        o.setName('user').setDescription('要查看的成員').setRequired(true),
-      ),
-    new SlashCommandBuilder()
-      .setName('delete_warn')
-      .setDescription('刪除成員的一個警告')
-      .addUserOption((o) =>
-        o.setName('user').setDescription('要刪除警告的成員').setRequired(true),
-      )
-      .addIntegerOption((o) =>
-        o.setName('warn_id').setDescription('警告ID').setRequired(true),
-      ),
-    new SlashCommandBuilder()
-      .setName('clear_all_warn')
-      .setDescription('清除成員所有的警告')
-      .addUserOption((o) =>
-        o.setName('user').setDescription('要清除警告的成員').setRequired(true),
-      ),
-    new SlashCommandBuilder()
-      .setName('kick')
-      .setDescription('踢出成員')
-      .addUserOption((o) =>
-        o.setName('user').setDescription('要踢出的成員').setRequired(true),
-      )
-      .addStringOption((o) => o.setName('reason').setDescription('踢出原因')),
-    new SlashCommandBuilder()
-      .setName('ban')
-      .setDescription('封鎖成員')
-      .addUserOption((o) =>
-        o.setName('user').setDescription('要封鎖的成員').setRequired(true),
-      )
-      .addStringOption((o) => o.setName('reason').setDescription('封鎖原因')),
-    new SlashCommandBuilder()
-      .setName('mute')
-      .setDescription('禁言成員')
-      .addUserOption((o) =>
-        o.setName('user').setDescription('要禁言的成員').setRequired(true),
-      )
-      .addIntegerOption((o) =>
-        o
-          .setName('mute_duration')
-          .setDescription('禁言時長(分鐘)')
-          .setRequired(true),
-      )
-      .addStringOption((o) => o.setName('reason').setDescription('禁言原因')),
-    new SlashCommandBuilder()
-      .setName('unmute')
-      .setDescription('解除成員禁言')
-      .addUserOption((o) =>
-        o.setName('user').setDescription('要解除禁言的成員').setRequired(true),
-      ),
-    new SlashCommandBuilder()
-      .setName('propose')
-      .setDescription('向某個成員求婚')
-      .addUserOption((o) =>
-        o.setName('user').setDescription('要求婚的成員').setRequired(true),
-      ),
-    new SlashCommandBuilder()
-      .setName('marriage')
-      .setDescription('查看婚姻狀態')
-      .addUserOption((o) =>
-        o.setName('user').setDescription('要查看的成員（不填則查看自己）'),
-      ),
-    new SlashCommandBuilder()
-      .setName('divorce')
-      .setDescription('向某位配偶申請離婚')
-      .addUserOption((o) =>
-        o.setName('user').setDescription('要離婚的配偶').setRequired(true),
-      ),
+  const specialMessages = [
+    "（純屬娛樂，也可以當真）",
+    "（或許不科學測試結果）",
+    "（今日限定結果）",
+    "（AI智缺分析）",
+    "（基於小數據分析）",
+    "（健太的老公們身份組招募中）",
+    "（健太專業認證）",
+    "（Rainbow Power 認證）",
+    "（彩虹能量檢測）",
+    "（Gay達檢測儀）",
   ];
+  const randomSpecialMessage =
+    specialMessages[Math.floor(Math.random() * specialMessages.length)];
 
-  const GAME_COMMANDS = new Set([
-    '同性戀指數',
-    '每日排行',
-    '統計',
-    '幫助',
-    '本日運勢',
-    '猜數字',
-  ]);
-  const ADMIN_COMMANDS = new Set([
-    'warn',
-    'check_warn',
-    'delete_warn',
-    'clear_all_warn',
-    'kick',
-    'ban',
-    'mute',
-    'unmute',
-    '遠征面板',
-  ]);
+  const levels = ["新手", "進階", "專家", "大師", "傳說", "神話"];
+  const level =
+    gayIndex <= 15
+      ? levels[0]
+      : gayIndex <= 30
+        ? levels[1]
+        : gayIndex <= 50
+          ? levels[2]
+          : gayIndex <= 70
+            ? levels[3]
+            : gayIndex <= 90
+              ? levels[4]
+              : levels[5];
 
-  // ============================================================================
-  // Keep-alive server（原 boss-raid-bot）
-  // ============================================================================
-  function startKeepAliveServer() {
-    const app = express();
-    app.get('/', (req, res) => res.send('Bot is alive'));
-    const PORT = process.env.PORT || 3000;
-    app.listen(PORT, () =>
-      console.log(`Keep-alive server running on port ${PORT}`),
-    );
+  const embed = new EmbedBuilder()
+    .setTitle(`${selectedMessage.emoji} 同性戀指數測試結果`)
+    .setDescription(
+      isSelf
+        ? `你的今日同性戀指數測試結果 ${selectedMessage.emoji}`
+        : `**${targetUser.displayName}** 的今日同性戀指數`,
+    )
+    .setColor(selectedMessage.color)
+    .addFields(
+      { name: "🏳️‍🌈 同性戀指數", value: `**${gayIndex}%**`, inline: true },
+      { name: "💬 評語", value: selectedMessage.message, inline: true },
+      { name: "📊 等級", value: level, inline: true },
+    )
+    .setFooter({ text: `${randomSpecialMessage} • 結果每日更新` })
+    .setTimestamp();
+
+  if (gayIndex === 100) {
+    embed.addFields({
+      name: "🎊 特殊成就解鎖",
+      value: "🏆 **彩虹大師** - 你是今日的Gay王者！",
+    });
   }
 
-  // ============================================================================
-  // ready：註冊指令、載入資料、排程
-  // ============================================================================
-  client.once('ready', async () => {
-    console.log(`✅ 機器人已登入：${client.user.tag}`);
-    console.log(`🌐 已加入 ${client.guilds.cache.size} 個伺服器`);
+  embed.addFields({ name: "📈 進度條", value: createProgressBar(gayIndex) });
 
-    loadWarnings();
-    loadMarriages();
-    loadProposals();
-    loadDivorces();
-    loadMutedMembers();
-    loadExpeditionMembers();
+  await interaction.reply({ embeds: [embed] });
 
-    try {
-      const result = await client.application.commands.set(
-        commands.map((c) => c.toJSON()),
-      );
-      console.log(`✅ 成功註冊 ${result.size} 個全域指令`);
-    } catch (error) {
-      console.error('❌ 註冊指令失敗:', error);
-    }
+  if (gayIndex >= 80) {
+    setTimeout(async () => {
+      const celebrations = [
+        "🌈 恭喜高分！",
+        "🎉 Gay度爆表！",
+        "🏳️‍🌈 彩虹認證！",
+        "✨ 閃閃發光！",
+        "🦄 獨角獸等級！",
+        "💖 愛就是愛！",
+        "🌟 你就是明星！",
+      ];
+      try {
+        await interaction.followUp(
+          celebrations[Math.floor(Math.random() * celebrations.length)],
+        );
+      } catch {}
+    }, 2000);
+  }
+}
 
-    // 每 5 分鐘掃描：遠征時間已過的頻道，貼「遠征結束了嗎？」提示（只貼一次）
-    scanExpeditions().catch(() => {});
-    setInterval(() => scanExpeditions().catch(() => {}), 5 * 60 * 1000);
+async function handleDailyRankingCommand(interaction) {
+  await interaction.deferReply();
+  try {
+    const guild = interaction.guild;
+    const members = await guild.members.fetch();
+    const today = new Date().toDateString();
+    const rankings = [];
+    members.forEach((member) => {
+      if (member.user.bot) return;
+      const gayIndex = seededRandom(`${member.id}_${today}`);
+      rankings.push({
+        user: member.user,
+        index: gayIndex,
+        displayName: member.displayName,
+      });
+    });
+    rankings.sort((a, b) => b.index - a.index);
 
-    // 定期清理
-    setInterval(
-      () => {
-        cleanExpiredProposals();
-        cleanExpiredDivorces();
-      },
-      10 * 60 * 1000,
+    const embed = new EmbedBuilder()
+      .setTitle("🏳️‍🌈 今日同性戀指數排行榜")
+      .setColor("#FF69B4")
+      .setDescription("今天誰最Gay呢？讓我們來看看排行榜！")
+      .setTimestamp();
+
+    const medals = ["🥇", "🥈", "🥉"];
+    let rankingText = "";
+    rankings.slice(0, 10).forEach((entry, index) => {
+      const medal = medals[index] || `${index + 1}.`;
+      const rainbow =
+        entry.index >= 80
+          ? "🌈"
+          : entry.index >= 60
+            ? "✨"
+            : entry.index >= 40
+              ? "💫"
+              : "";
+      rankingText += `${medal} **${entry.displayName}** - ${entry.index}% ${rainbow}\n`;
+    });
+
+    embed.addFields({
+      name: "🏆 排行榜 Top 10",
+      value: rankingText || "沒有數據",
+    });
+
+    const averageIndex = Math.round(
+      rankings.reduce((sum, e) => sum + e.index, 0) / rankings.length,
     );
-    setInterval(checkMutedMembers, 60 * 1000);
+    embed.addFields(
+      { name: "📊 平均指數", value: `${averageIndex}%`, inline: true },
+      {
+        name: "📈 最高指數",
+        value: `${rankings[0]?.index || 0}%`,
+        inline: true,
+      },
+      {
+        name: "📉 最低指數",
+        value: `${rankings[rankings.length - 1]?.index || 0}%`,
+        inline: true,
+      },
+    );
+    embed.setFooter({ text: "排行榜每日更新 | 純屬娛樂" });
+    await interaction.editReply({ embeds: [embed] });
+  } catch (error) {
+    console.error("排行榜錯誤:", error);
+    await interaction.editReply("❌ 生成排行榜時發生錯誤！");
+  }
+}
 
-    console.log('✅ 所有系統已載入完成');
+async function handleStatsCommand(interaction) {
+  await interaction.deferReply();
+  try {
+    const guild = interaction.guild;
+    const members = await guild.members.fetch();
+    const today = new Date().toDateString();
+    const stats = {
+      total: 0,
+      ranges: { "0-20": 0, "21-40": 0, "41-60": 0, "61-80": 0, "81-100": 0 },
+      perfect: 0,
+    };
+
+    members.forEach((member) => {
+      if (member.user.bot) return;
+      const gayIndex = seededRandom(`${member.id}_${today}`);
+      stats.total++;
+      if (gayIndex === 100) stats.perfect++;
+      if (gayIndex <= 20) stats.ranges["0-20"]++;
+      else if (gayIndex <= 40) stats.ranges["21-40"]++;
+      else if (gayIndex <= 60) stats.ranges["41-60"]++;
+      else if (gayIndex <= 80) stats.ranges["61-80"]++;
+      else stats.ranges["81-100"]++;
+    });
+
+    const embed = new EmbedBuilder()
+      .setTitle("📊 伺服器同性戀指數統計")
+      .setColor("#9932CC")
+      .setDescription(`基於 ${stats.total} 位成員的今日數據`)
+      .setTimestamp();
+
+    let rangeText = "";
+    Object.entries(stats.ranges).forEach(([range, count]) => {
+      const percentage = ((count / stats.total) * 100).toFixed(1);
+      const bar = "█".repeat(Math.round(percentage / 5));
+      rangeText += `**${range}%**: ${count} 人 (${percentage}%)\n${bar}\n\n`;
+    });
+    embed.addFields({ name: "🏳️‍🌈 指數分布", value: rangeText });
+    embed.addFields(
+      { name: "👥 總測試人數", value: `${stats.total} 人`, inline: true },
+      {
+        name: "🏆 完美指數(100%)",
+        value: `${stats.perfect} 人`,
+        inline: true,
+      },
+      { name: "📅 統計日期", value: today, inline: true },
+    );
+
+    const totalGayPercentage = (
+      ((stats.ranges["61-80"] + stats.ranges["81-100"]) / stats.total) *
+      100
+    ).toFixed(1);
+    const comment =
+      totalGayPercentage >= 50
+        ? "🌈 這個伺服器很有彩虹氛圍呢！"
+        : totalGayPercentage >= 30
+          ? "✨ 適度的彩虹能量！"
+          : "💫 還有很大的彩虹潛力！";
+    embed.addFields({
+      name: "💭 AI分析",
+      value: `高指數成員佔 ${totalGayPercentage}%\n${comment}`,
+    });
+    embed.setFooter({ text: "統計數據每日更新 | 純屬娛樂，請勿當真" });
+    await interaction.editReply({ embeds: [embed] });
+  } catch (error) {
+    console.error("統計錯誤:", error);
+    await interaction.editReply("❌ 生成統計時發生錯誤！");
+  }
+}
+
+async function handleHelpCommand(interaction) {
+  const embed = new EmbedBuilder()
+    .setTitle("🤖健太的機器人使用說明")
+    .setColor("#FF1493")
+    .setDescription("BOSS 遠征 + 娛樂小遊戲 + 會員管理，一站搞定！")
+    .addFields(
+      {
+        name: "⚔️ BOSS 遠征",
+        value:
+          "`/遠征面板` - 發送建立遠征隊的面板（管理員）\n" +
+          "`/確認團員` - 選擇最多 12 位團員，前一天自動 tag 提醒（也可用置頂訊息的按鈕）\n" +
+          "`/更改時間` - 更改目前遠征頻道的時間（團長／管理員）\n" +
+          "`/結束遠征` - 結束並刪除目前遠征頻道（團長／管理員）\n" +
+          "`/pin` - 設定此頻道的置底訊息",
+      },
+      {
+        name: "🎮 娛樂小遊戲",
+        value:
+          "`/同性戀指數 [成員]` - 測試同性戀指數\n" +
+          "`/本日運勢 [成員]` - 抽取今日運勢籤詩\n" +
+          "`/每日排行` - 查看今日同性戀指數排行榜\n" +
+          "`/統計` - 查看伺服器統計\n" +
+          "`/猜數字` - 猜數字遊戲",
+      },
+      {
+        name: "💒 結婚系統（一夫多妻／一妻多夫）",
+        value:
+          "`/propose @成員` - 求婚（可以有多個配偶）\n" +
+          "`/marriage [成員]` - 查看配偶名單\n" +
+          "`/divorce @成員` - 指定某位配偶申請離婚",
+      },
+      {
+        name: "🛡️ 管理指令（限管理員）",
+        value:
+          "`/warn` `/check_warn` `/delete_warn` `/clear_all_warn`\n" +
+          "`/kick` `/ban` `/mute` `/unmute`",
+      },
+    )
+    .setFooter({ text: "Made with 🌈 | Unified v1.0.0" })
+    .setTimestamp();
+  await interaction.reply({ embeds: [embed] });
+}
+
+// ---- 小遊戲：猜數字
+async function handleGuessNumber(interaction) {
+  const userGuess = interaction.options.getInteger("數字");
+  const today = new Date().toDateString();
+  const seed = `guess_${interaction.user.id}_${today}`;
+  const correctNumber = seededRandom(seed, 10) + 1;
+  const isCorrect = userGuess === correctNumber;
+
+  const embed = new EmbedBuilder()
+    .setTitle("🎯 猜數字遊戲")
+    .setDescription(
+      `你猜的數字: **${userGuess}**\n今日正確答案: **${correctNumber}**`,
+    )
+    .setColor(isCorrect ? "#00FF00" : "#FF6B6B")
+    .addFields({
+      name: isCorrect ? "🎉 結果" : "💔 結果",
+      value: isCorrect
+        ? "**恭喜猜對了！** 🎊\n你真是太厲害了！"
+        : "**很可惜猜錯了！** 😅\n明天再來挑戰吧！",
+    })
+    .setFooter({ text: "每日答案固定 • 純屬娛樂" })
+    .setTimestamp();
+  await interaction.reply({ embeds: [embed], ephemeral: true });
+
+  if (isCorrect) {
+    setTimeout(async () => {
+      try {
+        await interaction.followUp({
+          content: "🎯 太神了！一次就猜中！",
+          ephemeral: true,
+        });
+      } catch {}
+    }, 1500);
+  }
+}
+
+// ============================================================================
+// [MEMBER MANAGEMENT] 指令處理
+// ============================================================================
+async function handleWarnCommand(interaction) {
+  const user = interaction.options.getUser("user");
+  const reason = interaction.options.getString("reason");
+  const warning = await addWarning(
+    user,
+    interaction.member,
+    reason,
+    interaction.guild,
+  );
+  const userData = getUserWarnings(user.id);
+  const embed = new EmbedBuilder()
+    .setColor("#FF6B6B")
+    .setTitle("⚠️ 成員已被警告")
+    .addFields(
+      { name: "成員", value: `${user}`, inline: true },
+      { name: "管理員", value: `${interaction.member}`, inline: true },
+      { name: "原因", value: reason },
+      { name: "警告次數", value: `${userData.count}次`, inline: true },
+      { name: "警告ID", value: `${warning.id}`, inline: true },
+    )
+    .setTimestamp();
+  await interaction.reply({ embeds: [embed] });
+}
+
+async function handleCheckWarnCommand(interaction) {
+  const user = interaction.options.getUser("user");
+  const userData = getUserWarnings(user.id);
+  if (userData.count === 0) {
+    await interaction.reply({
+      content: `📋 ${user.tag} 沒有任何警告紀錄。`,
+      flags: 64,
+    });
+    return;
+  }
+  const embed = new EmbedBuilder()
+    .setColor("#FFA500")
+    .setTitle(`📋 ${user.tag} 的警告紀錄`)
+    .setDescription(`總警告次數: ${userData.count}`)
+    .setThumbnail(user.displayAvatarURL());
+
+  userData.warnings.slice(-5).forEach((warning) => {
+    const moderator = interaction.guild.members.cache.get(warning.moderator);
+    embed.addFields({
+      name: `警告 #${warning.id}`,
+      value: `**原因:** ${warning.reason}\n**管理員:** ${
+        moderator ? moderator.displayName : "未知"
+      }\n**時間:** ${new Date(warning.timestamp).toLocaleString("zh-TW")}`,
+    });
   });
+  if (userData.warnings.length > 5) {
+    embed.setFooter({
+      text: `顯示最近五條警告，共${userData.warnings.length}條`,
+    });
+  }
+  await interaction.reply({ embeds: [embed], flags: 64 });
+}
 
-  // ============================================================================
-  // interactionCreate：一站式分派
-  // ============================================================================
-  client.on('interactionCreate', async (interaction) => {
-    try {
-      // ---- 按鈕 ----
-      if (interaction.isButton()) {
-        const customId = interaction.customId;
+async function handleDeleteWarnCommand(interaction) {
+  const user = interaction.options.getUser("user");
+  const warningId = interaction.options.getInteger("warn_id");
+  const userData = getUserWarnings(user.id);
+  const idx = userData.warnings.findIndex((w) => w.id === warningId);
+  if (idx === -1) {
+    await interaction.reply({
+      content: "❌ 找不到指定的警告ID！",
+      flags: 64,
+    });
+    return;
+  }
+  userData.warnings.splice(idx, 1);
+  userData.count = userData.warnings.length;
+  saveWarnings();
+  await interaction.reply({
+    content: `✅ 已刪除 ${user.tag} 的警告 #${warningId}`,
+    flags: 64,
+  });
+}
 
-        // 求婚按鈕
-        if (customId.startsWith('accept_') || customId.startsWith('reject_')) {
-          await handleProposalButtons(interaction, customId);
-          return;
-        }
-        // 離婚按鈕
-        if (
-          customId.startsWith('divorce_accept_') ||
-          customId.startsWith('divorce_reject_')
-        ) {
-          await handleDivorceButtons(interaction, customId);
-          return;
-        }
-        // 遠征：點王按鈕 → 輸入時間
-        if (customId.startsWith('expedition_boss_')) {
-          await handleExpeditionBossButton(
-            interaction,
-            customId.replace('expedition_boss_', ''),
-          );
-          return;
-        }
-        // 遠征：管理員審核按鈕
-        if (customId.startsWith('exp_ok~') || customId.startsWith('exp_no~')) {
-          await handleExpeditionApproval(interaction, customId);
-          return;
-        }
-        // 遠征：更改時間按鈕 → 跳出輸入新時間視窗
-        if (customId.startsWith('exp_edit~')) {
-          await handleEditExpeditionButton(interaction, customId.split('~')[1]);
-          return;
-        }
-        // 遠征：確認團員按鈕 → 跳出成員選擇選單
-        if (customId.startsWith('exp_members~')) {
-          await handleConfirmMembersButton(interaction, customId.split('~')[1]);
-          return;
-        }
-        // 遠征：結束遠征（手動按鈕 或 當天確認的「是」）
-        if (
-          customId.startsWith('exp_end~') ||
-          customId.startsWith('exp_endok~')
-        ) {
-          await handleEndExpeditionButton(interaction, customId.split('~')[1]);
-          return;
-        }
-        // 遠征：當天確認的「還沒」
-        if (customId === 'exp_endno') {
-          await handleEndConfirmNo(interaction);
-          return;
-        }
+async function handleClearAllWarnCommand(interaction) {
+  const user = interaction.options.getUser("user");
+  const userData = getUserWarnings(user.id);
+  if (userData.count === 0) {
+    await interaction.reply({
+      content: `📋 ${user.tag} 沒有任何警告紀錄需要清除。`,
+      flags: 64,
+    });
+    return;
+  }
+  const originalCount = userData.count;
+  delete warningsData[user.id];
+  saveWarnings();
+  await interaction.reply({
+    content: `✅ 已清除 ${user.tag} 的所有警告紀錄！（共 ${originalCount} 條）`,
+    flags: 64,
+  });
+}
+
+async function handleKickCommand(interaction) {
+  const user = interaction.options.getUser("user");
+  const reason = interaction.options.getString("reason") || "未提供原因";
+  const member = interaction.guild.members.cache.get(user.id);
+  if (!member) {
+    await interaction.reply({ content: "❌ 成員不在伺服器中！", flags: 64 });
+    return;
+  }
+  if (!member.kickable) {
+    await interaction.reply({ content: "❌ 無法踢出此成員！", flags: 64 });
+    return;
+  }
+  try {
+    await member.kick(reason);
+    const embed = new EmbedBuilder()
+      .setColor("#FF8C00")
+      .setTitle("👢 成員已被踢出")
+      .addFields(
+        { name: "成員", value: `${user.tag}`, inline: true },
+        { name: "管理員", value: `${interaction.member}`, inline: true },
+        { name: "原因", value: reason },
+      )
+      .setTimestamp();
+    await interaction.reply({ embeds: [embed] });
+  } catch (error) {
+    console.error("踢出失敗:", error);
+    await interaction.reply({
+      content: "❌ 踢出成員時發生錯誤！",
+      flags: 64,
+    });
+  }
+}
+
+async function handleBanCommand(interaction) {
+  const user = interaction.options.getUser("user");
+  const reason = interaction.options.getString("reason") || "未提供原因";
+  const member = interaction.guild.members.cache.get(user.id);
+  if (member && !member.bannable) {
+    await interaction.reply({ content: "❌ 無法封鎖此成員！", flags: 64 });
+    return;
+  }
+  try {
+    await interaction.guild.members.ban(user, { reason });
+    const embed = new EmbedBuilder()
+      .setColor("#DC143C")
+      .setTitle("🔨 成員已被封鎖")
+      .addFields(
+        { name: "成員", value: `${user.tag}`, inline: true },
+        { name: "管理員", value: `${interaction.member}`, inline: true },
+        { name: "原因", value: reason },
+      )
+      .setTimestamp();
+    await interaction.reply({ embeds: [embed] });
+  } catch (error) {
+    console.error("封鎖失敗:", error);
+    await interaction.reply({
+      content: "❌ 封鎖成員時發生錯誤！",
+      flags: 64,
+    });
+  }
+}
+
+async function handleMuteCommand(interaction) {
+  const user = interaction.options.getUser("user");
+  const duration = interaction.options.getInteger("mute_duration");
+  const reason = interaction.options.getString("reason") || "未提供原因";
+  const member = interaction.guild.members.cache.get(user.id);
+  if (!member) {
+    await interaction.reply({ content: "❌ 成員不在伺服器中！", flags: 64 });
+    return;
+  }
+  if (!member.moderatable) {
+    await interaction.reply({ content: "❌ 無法禁言此成員！", flags: 64 });
+    return;
+  }
+  if (duration <= 0 || duration > 40320) {
+    await interaction.reply({
+      content: "❌ 禁言時長必須在1-40320分鐘之間！",
+      flags: 64,
+    });
+    return;
+  }
+  try {
+    const timeoutDuration = duration * 60 * 1000;
+    mutedMembers[user.id] = {
+      guildId: interaction.guild.id,
+      reason,
+      duration,
+      unmuteTime: Date.now() + timeoutDuration,
+      mutedBy: interaction.member.id,
+      mutedAt: Date.now(),
+    };
+    saveMutedMembers();
+    await member.timeout(timeoutDuration, reason);
+
+    const embed = new EmbedBuilder()
+      .setColor("#9932CC")
+      .setTitle("🔇 成員已被禁言")
+      .addFields(
+        { name: "成員", value: `${user.tag}`, inline: true },
+        { name: "管理員", value: `${interaction.member}`, inline: true },
+        { name: "時長", value: `${duration}分鐘`, inline: true },
+        { name: "原因", value: reason },
+      )
+      .setTimestamp();
+    await interaction.reply({ embeds: [embed] });
+  } catch (error) {
+    console.error("禁言失敗:", error);
+    await interaction.reply({
+      content: "❌ 禁言成員時發生錯誤！",
+      flags: 64,
+    });
+  }
+}
+
+async function handleUnmuteCommand(interaction) {
+  const user = interaction.options.getUser("user");
+  const member = interaction.guild.members.cache.get(user.id);
+  if (!member) {
+    await interaction.reply({ content: "❌ 成員不在伺服器中！", flags: 64 });
+    return;
+  }
+  if (!member.isCommunicationDisabled()) {
+    await interaction.reply({ content: "❌ 此成員沒有被禁言！", flags: 64 });
+    return;
+  }
+  try {
+    await member.timeout(null);
+    if (mutedMembers[user.id]) {
+      delete mutedMembers[user.id];
+      saveMutedMembers();
+    }
+    const embed = new EmbedBuilder()
+      .setColor("#32CD32")
+      .setTitle("🔊 成員禁言已解除")
+      .addFields(
+        { name: "成員", value: `${user.tag}`, inline: true },
+        { name: "管理員", value: `${interaction.member}`, inline: true },
+      )
+      .setTimestamp();
+    await interaction.reply({ embeds: [embed] });
+  } catch (error) {
+    console.error("解除禁言失敗:", error);
+    await interaction.reply({
+      content: "❌ 解除禁言時發生錯誤！",
+      flags: 64,
+    });
+  }
+}
+
+async function handleProposeCommand(interaction) {
+  const proposer = interaction.user;
+  const target = interaction.options.getUser("user");
+  if (proposer.id === target.id) {
+    await interaction.reply({
+      content: "❌ 你不能對自己求婚啦！",
+      flags: 64,
+    });
+    return;
+  }
+  if (isMarriedTo(proposer.id, target.id)) {
+    await interaction.reply({
+      content: "❌ 你們已經是夫妻了！",
+      flags: 64,
+    });
+    return;
+  }
+  const proposalId = `${proposer.id}_${target.id}_${Date.now()}`;
+  proposalData[proposalId] = {
+    proposer: proposer.id,
+    target: target.id,
+    timestamp: Date.now(),
+    guildId: interaction.guild.id,
+  };
+  saveProposals();
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`accept_${proposalId}`)
+      .setLabel("💍 接受")
+      .setStyle(ButtonStyle.Success),
+    new ButtonBuilder()
+      .setCustomId(`reject_${proposalId}`)
+      .setLabel("💔 拒絕")
+      .setStyle(ButtonStyle.Danger),
+  );
+  const embed = new EmbedBuilder()
+    .setColor("#FF69B4")
+    .setTitle("💍 求婚通知")
+    .setDescription(`${proposer} 向 ${target} 求婚！`)
+    .addFields(
+      { name: "💕 求婚訊息", value: `${target}，你願意和我結婚嗎？` },
+      { name: "⏰ 有效時間", value: "30分鐘" },
+    )
+    .setTimestamp();
+  await interaction.reply({ embeds: [embed], components: [row] });
+}
+
+async function handleMarriageCommand(interaction) {
+  const targetUser = interaction.options.getUser("user") || interaction.user;
+  const spouses = getSpouses(targetUser.id);
+  if (spouses.length === 0) {
+    const embed = new EmbedBuilder()
+      .setColor("#808080")
+      .setTitle("💔 單身狀態")
+      .setDescription(`${targetUser.displayName} 目前是單身狀態`)
+      .setTimestamp();
+    await interaction.reply({ embeds: [embed], flags: 64 });
+    return;
+  }
+
+  const lines = [];
+  for (const m of spouses) {
+    const member = await interaction.guild.members
+      .fetch(m.spouse)
+      .catch(() => null);
+    const name = member ? member.displayName : `未知使用者 (${m.spouse})`;
+    const date = new Date(m.marriageDate).toLocaleString("zh-TW");
+    lines.push(`💕 **${name}**\n　　結婚日期：${date}`);
+  }
+
+  const embed = new EmbedBuilder()
+    .setColor("#FFD700")
+    .setTitle(`💕 ${targetUser.displayName} 的婚姻狀態`)
+    .setDescription(`共有 **${spouses.length}** 位配偶`)
+    .addFields({ name: "配偶名單", value: lines.join("\n\n") })
+    .setTimestamp();
+  await interaction.reply({ embeds: [embed], flags: 64 });
+}
+
+async function handleDivorceCommand(interaction) {
+  const user = interaction.user;
+  const target = interaction.options.getUser("user");
+  if (!isMarriedTo(user.id, target.id)) {
+    await interaction.reply({
+      content: `❌ 你和 ${target} 沒有婚姻關係！`,
+      flags: 64,
+    });
+    return;
+  }
+  const divorceId = `${user.id}_${target.id}_${Date.now()}`;
+  divorceData[divorceId] = {
+    applicant: user.id,
+    spouse: target.id,
+    timestamp: Date.now(),
+    guildId: interaction.guild.id,
+  };
+  saveDivorces();
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`divorce_accept_${divorceId}`)
+      .setLabel("💔 同意離婚")
+      .setStyle(ButtonStyle.Danger),
+    new ButtonBuilder()
+      .setCustomId(`divorce_reject_${divorceId}`)
+      .setLabel("💕 拒絕離婚")
+      .setStyle(ButtonStyle.Success),
+  );
+  const embed = new EmbedBuilder()
+    .setColor("#8B4513")
+    .setTitle("💔 離婚申請")
+    .setDescription(`${user} 向 ${target} 提出離婚申請`)
+    .addFields({ name: "⏰ 有效時間", value: "30分鐘" })
+    .setTimestamp();
+  await interaction.reply({ embeds: [embed], components: [row] });
+}
+
+// ============================================================================
+// [MEMBER MANAGEMENT] 按鈕分發
+// ============================================================================
+async function handleProposalButtons(interaction, customId) {
+  const action = customId.startsWith("accept_") ? "accept" : "reject";
+  const proposalId = customId.substring(7);
+  const proposal = proposalData[proposalId];
+  if (!proposal || interaction.user.id !== proposal.target) {
+    await interaction.reply({ content: "❌ 無效的操作！", flags: 64 });
+    return;
+  }
+  if (action === "accept") {
+    const alreadyMarried = isMarriedTo(proposal.proposer, proposal.target);
+    createMarriage(proposal.proposer, proposal.target);
+    delete proposalData[proposalId];
+    saveProposals();
+    await interaction.update({
+      embeds: [
+        new EmbedBuilder()
+          .setColor("#FFD700")
+          .setTitle(alreadyMarried ? "💕 已經是夫妻了" : "🎉 結婚公告")
+          .setDescription(
+            alreadyMarried ? "你們早就結婚了！" : "恭喜結為夫妻！",
+          )
+          .setTimestamp(),
+      ],
+      components: [],
+    });
+  } else {
+    delete proposalData[proposalId];
+    saveProposals();
+    await interaction.update({
+      embeds: [
+        new EmbedBuilder()
+          .setColor("#FF6B6B")
+          .setTitle("💔 求婚被拒絕")
+          .setTimestamp(),
+      ],
+      components: [],
+    });
+  }
+}
+
+async function handleDivorceButtons(interaction, customId) {
+  const action = customId.startsWith("divorce_accept_") ? "accept" : "reject";
+  const divorceId = customId.substring(15);
+  const divorce = divorceData[divorceId];
+  if (!divorce || interaction.user.id !== divorce.spouse) {
+    await interaction.reply({ content: "❌ 無效的操作！", flags: 64 });
+    return;
+  }
+  if (action === "accept") {
+    deleteMarriage(divorce.applicant, divorce.spouse);
+    delete divorceData[divorceId];
+    saveDivorces();
+    await interaction.update({
+      embeds: [
+        new EmbedBuilder()
+          .setColor("#8B4513")
+          .setTitle("📋 離婚證明")
+          .setDescription("離婚手續已完成")
+          .setTimestamp(),
+      ],
+      components: [],
+    });
+  } else {
+    delete divorceData[divorceId];
+    saveDivorces();
+    await interaction.update({
+      embeds: [
+        new EmbedBuilder()
+          .setColor("#32CD32")
+          .setTitle("💕 離婚申請被拒絕")
+          .setTimestamp(),
+      ],
+      components: [],
+    });
+  }
+}
+
+// ============================================================================
+// 所有 Slash 指令定義（會全域註冊）
+// ============================================================================
+const commands = [
+  // ---- 遠征 / 工具 ----
+  new SlashCommandBuilder()
+    .setName("pin")
+    .setDescription("設定此頻道的置底訊息")
+    .addStringOption((o) =>
+      o.setName("content").setDescription("置底訊息內容").setRequired(true),
+    ),
+  new SlashCommandBuilder()
+    .setName("遠征面板")
+    .setDescription("發送建立遠征隊的面板（管理員）"),
+  new SlashCommandBuilder()
+    .setName("結束遠征")
+    .setDescription("結束目前這個遠征頻道並刪除（限團長或管理員）"),
+  new SlashCommandBuilder()
+    .setName("更改時間")
+    .setDescription("更改目前這個遠征頻道的時間（限團長或管理員）"),
+  new SlashCommandBuilder()
+    .setName("確認團員")
+    .setDescription("選擇這次遠征的團員（最多 12 人，限團長或管理員）"),
+
+  // ---- GAME (中文) ----
+  new SlashCommandBuilder()
+    .setName("同性戀指數")
+    .setDescription("測試同性戀指數（純娛樂）")
+    .addUserOption((o) =>
+      o.setName("成員").setDescription("要測試的成員（不填則測試自己）"),
+    ),
+  new SlashCommandBuilder()
+    .setName("每日排行")
+    .setDescription("查看今日同性戀指數排行榜"),
+  new SlashCommandBuilder()
+    .setName("統計")
+    .setDescription("查看伺服器同性戀指數統計"),
+  new SlashCommandBuilder()
+    .setName("幫助")
+    .setDescription("查看機器人使用說明"),
+  new SlashCommandBuilder()
+    .setName("本日運勢")
+    .setDescription("查看本日運勢")
+    .addUserOption((o) =>
+      o.setName("成員").setDescription("為其他成員求籤（不填寫則為自己）"),
+    ),
+  new SlashCommandBuilder()
+    .setName("猜數字")
+    .setDescription("猜數字遊戲（1-10）")
+    .addIntegerOption((o) =>
+      o
+        .setName("數字")
+        .setDescription("猜一個1-10的數字")
+        .setRequired(true)
+        .setMinValue(1)
+        .setMaxValue(1000),
+    ),
+
+  // ---- MEMBER MANAGEMENT ----
+  new SlashCommandBuilder()
+    .setName("warn")
+    .setDescription("警告成員")
+    .addUserOption((o) =>
+      o.setName("user").setDescription("要警告的成員").setRequired(true),
+    )
+    .addStringOption((o) =>
+      o.setName("reason").setDescription("警告原因").setRequired(true),
+    ),
+  new SlashCommandBuilder()
+    .setName("check_warn")
+    .setDescription("查看成員警告紀錄")
+    .addUserOption((o) =>
+      o.setName("user").setDescription("要查看的成員").setRequired(true),
+    ),
+  new SlashCommandBuilder()
+    .setName("delete_warn")
+    .setDescription("刪除成員的一個警告")
+    .addUserOption((o) =>
+      o.setName("user").setDescription("要刪除警告的成員").setRequired(true),
+    )
+    .addIntegerOption((o) =>
+      o.setName("warn_id").setDescription("警告ID").setRequired(true),
+    ),
+  new SlashCommandBuilder()
+    .setName("clear_all_warn")
+    .setDescription("清除成員所有的警告")
+    .addUserOption((o) =>
+      o.setName("user").setDescription("要清除警告的成員").setRequired(true),
+    ),
+  new SlashCommandBuilder()
+    .setName("kick")
+    .setDescription("踢出成員")
+    .addUserOption((o) =>
+      o.setName("user").setDescription("要踢出的成員").setRequired(true),
+    )
+    .addStringOption((o) => o.setName("reason").setDescription("踢出原因")),
+  new SlashCommandBuilder()
+    .setName("ban")
+    .setDescription("封鎖成員")
+    .addUserOption((o) =>
+      o.setName("user").setDescription("要封鎖的成員").setRequired(true),
+    )
+    .addStringOption((o) => o.setName("reason").setDescription("封鎖原因")),
+  new SlashCommandBuilder()
+    .setName("mute")
+    .setDescription("禁言成員")
+    .addUserOption((o) =>
+      o.setName("user").setDescription("要禁言的成員").setRequired(true),
+    )
+    .addIntegerOption((o) =>
+      o
+        .setName("mute_duration")
+        .setDescription("禁言時長(分鐘)")
+        .setRequired(true),
+    )
+    .addStringOption((o) => o.setName("reason").setDescription("禁言原因")),
+  new SlashCommandBuilder()
+    .setName("unmute")
+    .setDescription("解除成員禁言")
+    .addUserOption((o) =>
+      o.setName("user").setDescription("要解除禁言的成員").setRequired(true),
+    ),
+  new SlashCommandBuilder()
+    .setName("propose")
+    .setDescription("向某個成員求婚")
+    .addUserOption((o) =>
+      o.setName("user").setDescription("要求婚的成員").setRequired(true),
+    ),
+  new SlashCommandBuilder()
+    .setName("marriage")
+    .setDescription("查看婚姻狀態")
+    .addUserOption((o) =>
+      o.setName("user").setDescription("要查看的成員（不填則查看自己）"),
+    ),
+  new SlashCommandBuilder()
+    .setName("divorce")
+    .setDescription("向某位配偶申請離婚")
+    .addUserOption((o) =>
+      o.setName("user").setDescription("要離婚的配偶").setRequired(true),
+    ),
+];
+
+const GAME_COMMANDS = new Set([
+  "同性戀指數",
+  "每日排行",
+  "統計",
+  "幫助",
+  "本日運勢",
+  "猜數字",
+]);
+const ADMIN_COMMANDS = new Set([
+  "warn",
+  "check_warn",
+  "delete_warn",
+  "clear_all_warn",
+  "kick",
+  "ban",
+  "mute",
+  "unmute",
+  "遠征面板",
+]);
+
+// ============================================================================
+// Keep-alive server（原 boss-raid-bot）
+// ============================================================================
+function startKeepAliveServer() {
+  const app = express();
+  app.get("/", (req, res) => res.send("Bot is alive"));
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () =>
+    console.log(`Keep-alive server running on port ${PORT}`),
+  );
+}
+
+// ============================================================================
+// ready：註冊指令、載入資料、排程
+// ============================================================================
+client.once("ready", async () => {
+  console.log(`✅ 機器人已登入：${client.user.tag}`);
+  console.log(`🌐 已加入 ${client.guilds.cache.size} 個伺服器`);
+
+  loadWarnings();
+  loadMarriages();
+  loadProposals();
+  loadDivorces();
+  loadMutedMembers();
+  loadExpeditionMembers();
+
+  try {
+    const result = await client.application.commands.set(
+      commands.map((c) => c.toJSON()),
+    );
+    console.log(`✅ 成功註冊 ${result.size} 個全域指令`);
+  } catch (error) {
+    console.error("❌ 註冊指令失敗:", error);
+  }
+
+  // 每 5 分鐘掃描：遠征時間已過的頻道，貼「遠征結束了嗎？」提示（只貼一次）
+  scanExpeditions().catch(() => {});
+  setInterval(() => scanExpeditions().catch(() => {}), 5 * 60 * 1000);
+
+  // 定期清理
+  setInterval(
+    () => {
+      cleanExpiredProposals();
+      cleanExpiredDivorces();
+    },
+    10 * 60 * 1000,
+  );
+  setInterval(checkMutedMembers, 60 * 1000);
+
+  console.log("✅ 所有系統已載入完成");
+});
+
+// ============================================================================
+// interactionCreate：一站式分派
+// ============================================================================
+client.on("interactionCreate", async (interaction) => {
+  try {
+    // ---- 按鈕 ----
+    if (interaction.isButton()) {
+      const customId = interaction.customId;
+
+      // 求婚按鈕
+      if (customId.startsWith("accept_") || customId.startsWith("reject_")) {
+        await handleProposalButtons(interaction, customId);
         return;
       }
-
-      // ---- 成員選擇選單（確認遠征團員）----
+      // 離婚按鈕
       if (
-        interaction.isUserSelectMenu() &&
-        interaction.customId === 'exp_member_select'
+        customId.startsWith("divorce_accept_") ||
+        customId.startsWith("divorce_reject_")
       ) {
-        await handleConfirmMembersSelect(interaction);
+        await handleDivorceButtons(interaction, customId);
         return;
       }
-
-      // ---- 遠征時間 Modal ----
-      if (
-        interaction.isModalSubmit() &&
-        interaction.customId.startsWith('expedition_time_')
-      ) {
-        await handleExpeditionTimeModal(
+      // 遠征：點王按鈕 → 輸入時間
+      if (customId.startsWith("expedition_boss_")) {
+        await handleExpeditionBossButton(
           interaction,
-          interaction.customId.replace('expedition_time_', ''),
+          customId.replace("expedition_boss_", ""),
         );
         return;
       }
-
-      // ---- 更改遠征時間 Modal ----
-      if (
-        interaction.isModalSubmit() &&
-        interaction.customId === 'expedition_edit_time'
-      ) {
-        await handleExpeditionEditTimeModal(interaction);
+      // 遠征：管理員審核按鈕
+      if (customId.startsWith("exp_ok~") || customId.startsWith("exp_no~")) {
+        await handleExpeditionApproval(interaction, customId);
         return;
       }
+      // 遠征：更改時間按鈕 → 跳出輸入新時間視窗
+      if (customId.startsWith("exp_edit~")) {
+        await handleEditExpeditionButton(interaction, customId.split("~")[1]);
+        return;
+      }
+      // 遠征：確認團員按鈕 → 跳出成員選擇選單
+      if (customId.startsWith("exp_members~")) {
+        await handleConfirmMembersButton(interaction, customId.split("~")[1]);
+        return;
+      }
+      // 遠征：結束遠征（手動按鈕 或 當天確認的「是」）
+      if (
+        customId.startsWith("exp_end~") ||
+        customId.startsWith("exp_endok~")
+      ) {
+        await handleEndExpeditionButton(interaction, customId.split("~")[1]);
+        return;
+      }
+      // 遠征：當天確認的「還沒」
+      if (customId === "exp_endno") {
+        await handleEndConfirmNo(interaction);
+        return;
+      }
+      return;
+    }
 
-      // ---- Slash 指令 ----
-      if (!interaction.isChatInputCommand()) return;
-      const { commandName } = interaction;
+    // ---- 成員選擇選單（確認遠征團員）----
+    if (
+      interaction.isUserSelectMenu() &&
+      interaction.customId === "exp_member_select"
+    ) {
+      await handleConfirmMembersSelect(interaction);
+      return;
+    }
 
-      // /pin：設定置底訊息
-      if (commandName === 'pin') {
-        const content = interaction.options.getString('content');
-        const channel = interaction.channel;
-        if (pinnedMessageMap[channel.id]) {
-          const old = await channel.messages
-            .fetch(pinnedMessageMap[channel.id].messageId)
-            .catch(() => null);
-          if (old) await old.delete().catch(() => {});
-        }
-        const sent = await channel.send(content);
-        pinnedMessageMap[channel.id] = { messageId: sent.id, content };
+    // ---- 遠征時間 Modal ----
+    if (
+      interaction.isModalSubmit() &&
+      interaction.customId.startsWith("expedition_time_")
+    ) {
+      await handleExpeditionTimeModal(
+        interaction,
+        interaction.customId.replace("expedition_time_", ""),
+      );
+      return;
+    }
+
+    // ---- 更改遠征時間 Modal ----
+    if (
+      interaction.isModalSubmit() &&
+      interaction.customId === "expedition_edit_time"
+    ) {
+      await handleExpeditionEditTimeModal(interaction);
+      return;
+    }
+
+    // ---- Slash 指令 ----
+    if (!interaction.isChatInputCommand()) return;
+    const { commandName } = interaction;
+
+    // /pin：設定置底訊息
+    if (commandName === "pin") {
+      const content = interaction.options.getString("content");
+      const channel = interaction.channel;
+      if (pinnedMessageMap[channel.id]) {
+        const old = await channel.messages
+          .fetch(pinnedMessageMap[channel.id].messageId)
+          .catch(() => null);
+        if (old) await old.delete().catch(() => {});
+      }
+      const sent = await channel.send(content);
+      pinnedMessageMap[channel.id] = { messageId: sent.id, content };
+      await interaction.reply({
+        content: "✅ 置底訊息已設定",
+        ephemeral: true,
+      });
+      return;
+    }
+
+    // Game 指令
+    if (GAME_COMMANDS.has(commandName)) {
+      switch (commandName) {
+        case "同性戀指數":
+          return await handleGayIndexCommand(interaction);
+        case "每日排行":
+          return await handleDailyRankingCommand(interaction);
+        case "統計":
+          return await handleStatsCommand(interaction);
+        case "幫助":
+          return await handleHelpCommand(interaction);
+        case "本日運勢":
+          return await handleFortuneCommand(interaction);
+        case "猜數字":
+          return await handleGuessNumber(interaction);
+      }
+    }
+
+    // 管理指令權限檢查
+    if (ADMIN_COMMANDS.has(commandName)) {
+      if (!isAdmin(interaction.member)) {
         await interaction.reply({
-          content: '✅ 置底訊息已設定',
-          ephemeral: true,
+          content: "❌ 你沒有權限使用此指令！",
+          flags: 64,
         });
         return;
       }
-
-      // Game 指令
-      if (GAME_COMMANDS.has(commandName)) {
-        switch (commandName) {
-          case '同性戀指數':
-            return await handleGayIndexCommand(interaction);
-          case '每日排行':
-            return await handleDailyRankingCommand(interaction);
-          case '統計':
-            return await handleStatsCommand(interaction);
-          case '幫助':
-            return await handleHelpCommand(interaction);
-          case '本日運勢':
-            return await handleFortuneCommand(interaction);
-          case '猜數字':
-            return await handleGuessNumber(interaction);
-        }
-      }
-
-      // 管理指令權限檢查
-      if (ADMIN_COMMANDS.has(commandName)) {
-        if (!isAdmin(interaction.member)) {
-          await interaction.reply({
-            content: '❌ 你沒有權限使用此指令！',
-            flags: 64,
-          });
-          return;
-        }
-      }
-
-      switch (commandName) {
-        case 'warn':
-          return await handleWarnCommand(interaction);
-        case 'check_warn':
-          return await handleCheckWarnCommand(interaction);
-        case 'delete_warn':
-          return await handleDeleteWarnCommand(interaction);
-        case 'clear_all_warn':
-          return await handleClearAllWarnCommand(interaction);
-        case 'kick':
-          return await handleKickCommand(interaction);
-        case 'ban':
-          return await handleBanCommand(interaction);
-        case 'mute':
-          return await handleMuteCommand(interaction);
-        case 'unmute':
-          return await handleUnmuteCommand(interaction);
-        case 'propose':
-          return await handleProposeCommand(interaction);
-        case 'marriage':
-          return await handleMarriageCommand(interaction);
-        case 'divorce':
-          return await handleDivorceCommand(interaction);
-        case '遠征面板':
-          return await handleExpeditionPanel(interaction);
-        case '結束遠征':
-          return await handleEndExpeditionCommand(interaction);
-        case '更改時間':
-          return await handleEditExpeditionButton(
-            interaction,
-            getExpeditionLeaderId(interaction.channel),
-          );
-        case '確認團員':
-          return await handleConfirmMembersButton(
-            interaction,
-            getExpeditionLeaderId(interaction.channel),
-          );
-      }
-    } catch (error) {
-      console.error('處理 interaction 時出錯:', error);
-      if (!interaction.replied && !interaction.deferred) {
-        try {
-          await interaction.reply({
-            content: '❌ 執行時發生錯誤！',
-            flags: 64,
-          });
-        } catch {}
-      }
     }
-  });
 
-  // ============================================================================
-  // messageCreate：三個 handler 並存
-  // ============================================================================
-  client.on('messageCreate', async (message) => {
-    if (message.author.bot) return;
-
-    // (1) 置底訊息守衛（原 boss-raid-bot）
-    const pinned = pinnedMessageMap[message.channelId];
-    if (pinned && message.id !== pinned.messageId) {
+    switch (commandName) {
+      case "warn":
+        return await handleWarnCommand(interaction);
+      case "check_warn":
+        return await handleCheckWarnCommand(interaction);
+      case "delete_warn":
+        return await handleDeleteWarnCommand(interaction);
+      case "clear_all_warn":
+        return await handleClearAllWarnCommand(interaction);
+      case "kick":
+        return await handleKickCommand(interaction);
+      case "ban":
+        return await handleBanCommand(interaction);
+      case "mute":
+        return await handleMuteCommand(interaction);
+      case "unmute":
+        return await handleUnmuteCommand(interaction);
+      case "propose":
+        return await handleProposeCommand(interaction);
+      case "marriage":
+        return await handleMarriageCommand(interaction);
+      case "divorce":
+        return await handleDivorceCommand(interaction);
+      case "遠征面板":
+        return await handleExpeditionPanel(interaction);
+      case "結束遠征":
+        return await handleEndExpeditionCommand(interaction);
+      case "更改時間":
+        return await handleEditExpeditionButton(
+          interaction,
+          getExpeditionLeaderId(interaction.channel),
+        );
+      case "確認團員":
+        return await handleConfirmMembersButton(
+          interaction,
+          getExpeditionLeaderId(interaction.channel),
+        );
+    }
+  } catch (error) {
+    console.error("處理 interaction 時出錯:", error);
+    if (!interaction.replied && !interaction.deferred) {
       try {
-        const old = await message.channel.messages
-          .fetch(pinned.messageId)
-          .catch(() => null);
-        if (old) await old.delete().catch(() => {});
-        const sent = await message.channel.send(pinned.content);
-        pinnedMessageMap[message.channelId].messageId = sent.id;
-      } catch (error) {
-        console.log('置底訊息更新失敗:', error.message);
-      }
+        await interaction.reply({
+          content: "❌ 執行時發生錯誤！",
+          flags: 64,
+        });
+      } catch {}
     }
+  }
+});
 
-    // (2) 關鍵字彩蛋（原 discord-game）
+// ============================================================================
+// messageCreate：三個 handler 並存
+// ============================================================================
+client.on("messageCreate", async (message) => {
+  if (message.author.bot) return;
+
+  // (1) 置底訊息守衛（原 boss-raid-bot）
+  const pinned = pinnedMessageMap[message.channelId];
+  if (pinned && message.id !== pinned.messageId) {
     try {
-      const content = message.content.toLowerCase();
-      const keywords = [
-        'gay',
-        '同性戀',
-        '彩虹',
-        'rainbow',
-        'lgbtq',
-        'pride',
-        '運勢',
-        '求籤',
-      ];
-      if (keywords.some((k) => content.includes(k)) && Math.random() < 0.05) {
-        const reactions = ['🏳️‍🌈', '🌈', '💖', '✨', '🦄', '🏮', '🔮'];
-        const randomReaction =
-          reactions[Math.floor(Math.random() * reactions.length)];
-        message.react(randomReaction).catch(() => {});
-      }
-    } catch {}
-  });
-
-  // ============================================================================
-  // 頻道刪除：清掉該遠征頻道已確認的團員資料
-  // ============================================================================
-  client.on('channelDelete', (channel) => {
-    if (expeditionMembers[channel.id]) {
-      delete expeditionMembers[channel.id];
-      saveExpeditionMembers();
+      const old = await message.channel.messages
+        .fetch(pinned.messageId)
+        .catch(() => null);
+      if (old) await old.delete().catch(() => {});
+      const sent = await message.channel.send(pinned.content);
+      pinnedMessageMap[message.channelId].messageId = sent.id;
+    } catch (error) {
+      console.log("置底訊息更新失敗:", error.message);
     }
-  });
+  }
 
-  // ============================================================================
-  // 錯誤處理
-  // ============================================================================
-  client.on('error', (error) => console.error('Discord 錯誤:', error.message));
-  process.on('unhandledRejection', (error) =>
-    console.error('未處理錯誤:', error?.message || error),
-  );
-  process.on('SIGINT', () => {
-    console.log('👋 關閉機器人...');
-    client.destroy();
-    process.exit(0);
-  });
+  // (2) 關鍵字彩蛋（原 discord-game）
+  try {
+    const content = message.content.toLowerCase();
+    const keywords = [
+      "gay",
+      "同性戀",
+      "彩虹",
+      "rainbow",
+      "lgbtq",
+      "pride",
+      "運勢",
+      "求籤",
+    ];
+    if (keywords.some((k) => content.includes(k)) && Math.random() < 0.05) {
+      const reactions = ["🏳️‍🌈", "🌈", "💖", "✨", "🦄", "🏮", "🔮"];
+      const randomReaction =
+        reactions[Math.floor(Math.random() * reactions.length)];
+      message.react(randomReaction).catch(() => {});
+    }
+  } catch {}
+});
 
-  // ============================================================================
-  // 啟動！
-  // ============================================================================
-  startKeepAliveServer();
-  client.login(config.token).catch((error) => {
-    console.error('❌ 登入失敗:', error.message);
-    process.exit(1);
-  });
+// ============================================================================
+// 頻道刪除：清掉該遠征頻道已確認的團員資料
+// ============================================================================
+client.on("channelDelete", (channel) => {
+  if (expeditionMembers[channel.id]) {
+    delete expeditionMembers[channel.id];
+    saveExpeditionMembers();
+  }
+});
 
-  console.log('🚀 正在啟動 unified-discord-bot ...');
-}
+// ============================================================================
+// 錯誤處理
+// ============================================================================
+client.on("error", (error) => console.error("Discord 錯誤:", error.message));
+process.on("unhandledRejection", (error) =>
+  console.error("未處理錯誤:", error?.message || error),
+);
+process.on("SIGINT", () => {
+  console.log("👋 關閉機器人...");
+  client.destroy();
+  process.exit(0);
+});
+
+// ============================================================================
+// 啟動！
+// ============================================================================
+startKeepAliveServer();
+client.login(config.token).catch((error) => {
+  console.error("❌ 登入失敗:", error.message);
+  process.exit(1);
+});
+
+console.log("🚀 正在啟動 unified-discord-bot ...");
