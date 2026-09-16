@@ -61,8 +61,9 @@ const BOSSES = [
   { id: "papulatus", name: "拉圖斯", emoji: "⏰" },
   { id: "hard_papulatus", name: "困難拉圖斯", emoji: "⏰" },
   { id: "zakum", name: "殘暴炎魔", emoji: "🔥" },
-  { id: "horntail", name: "暗黑龍王", emoji: "🐲" },
+  { id: "horntail", name: "闇黑龍王", emoji: "🐲" },
   { id: "ephenia", name: "艾畢奈雅", emoji: "🧚" },
+  { id: "cresell", name: "克雷塞爾", emoji: "🌲" },
 ];
 
 // 動態遠征頻道統一歸在這個分類底下
