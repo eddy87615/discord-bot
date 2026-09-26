@@ -18,8 +18,11 @@
    # Discord 機器人 token（必填）
    TOKEN=你的_discord_bot_token
 
-   # 管理身分組 ID（會員管理指令要用）
-   ADMIN_ROLE_ID=身分組ID
+   # 管理身分組 ID（會員管理指令要用），多個伺服器用逗號分隔
+   ADMIN_ROLE_IDS=身分組ID1,身分組ID2
+
+   # 舊資料要遷移到哪個伺服器（機器人只在一個伺服器時可省略）
+   LEGACY_GUILD_ID=原本伺服器ID
 
    # keep-alive 用的 port（可選，預設 3000）
    PORT=3000
@@ -100,11 +103,14 @@ docker compose logs -f
 
 ## 六、資料會不會不見？
 
-不會。機器人的狀態（警告、婚姻、禁言等）會存在這幾個檔案：
+不會。機器人的狀態（警告、婚姻、禁言、遠征團員等）都存在專案底下的 `data/` 資料夾：
 
-`warnings.json`、`marriages.json`、`proposals.json`、`divorces.json`、`muted_members.json`
+`warnings.json`、`marriages.json`、`proposals.json`、`divorces.json`、`muted_members.json`、`expedition_members.json`
 
-`docker-compose.yml` 已經把它們掛載到主機，所以就算容器重建、重啟，資料都會保留。
+`docker-compose.yml` 把整個 `data/` 掛載到主機，所以就算容器重建、重啟，資料都會保留。
+`data/` 不在 git 裡，`git pull` 不會動到它；要備份的話，複製整個 `data/` 資料夾就好。
+
+警告、婚姻、禁言資料會依伺服器分開存放，不同伺服器互不影響。
 
 ---
 
@@ -113,7 +119,7 @@ docker compose logs -f
 **遠征報名**
 | 指令 | 說明 | 誰能用 |
 |------|------|--------|
-| `/遠征面板` | 發送建立遠征隊的面板，成員點王→輸入時間→管理員審核→自動開報名頻道 | 管理員 |
+| `/遠征面板` | 發送建立遠征隊的面板，成員點王→輸入時間→自動開報名頻道 | 管理員 |
 
 > 遠征頻道會自動歸在「🐲遠征報名區」分類底下，**每週四 00:00 整批刪除重置**。頻道建好後 bot 會自動貼上報名格式範本並釘選。
 

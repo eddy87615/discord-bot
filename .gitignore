@@ -10,3 +10,5 @@ Thumbs.db
 .idea/
 *.tmp
 *.temp
+*.bak
+data/

@@ -36,7 +36,11 @@ if (!TOKEN) {
 
 const config = {
   token: TOKEN,
-  adminRoleId: process.env.ADMIN_ROLE_ID || "",
+  // 管理員身分組，多個伺服器時用逗號分隔（相容舊的 ADMIN_ROLE_ID）
+  adminRoleIds: (process.env.ADMIN_ROLE_IDS || process.env.ADMIN_ROLE_ID || "")
+    .split(",")
+    .map((id) => id.trim())
+    .filter(Boolean),
   warningThresholds: { mute: 3, kick: 5, ban: 7 },
   muteDuration: 24 * 60 * 60 * 1000,
 };
@@ -85,6 +89,18 @@ let mutedMembers = {};
 // 遠征已確認團員：channelId -> { members:[userId], guildId, reminded, rosterMessageId }
 let expeditionMembers = {};
 
+// 所有狀態 JSON 都放在 data/ 底下（Docker 掛載整個資料夾到主機）
+const DATA_DIR = "./data";
+fs.mkdirSync(DATA_DIR, { recursive: true });
+const FILES = {
+  warnings: `${DATA_DIR}/warnings.json`,
+  marriages: `${DATA_DIR}/marriages.json`,
+  proposals: `${DATA_DIR}/proposals.json`,
+  divorces: `${DATA_DIR}/divorces.json`,
+  muted: `${DATA_DIR}/muted_members.json`,
+  expedition: `${DATA_DIR}/expedition_members.json`,
+};
+
 function loadJson(path) {
   try {
     if (fs.existsSync(path)) {
@@ -105,73 +121,154 @@ function saveJson(path, obj) {
   }
 }
 
-const loadWarnings = () => (warningsData = loadJson("./warnings.json"));
+// 警告 / 婚姻 / 禁言資料依伺服器分開存放：data[guildId][userId]
+// 舊版資料沒有伺服器這一層，載入時自動遷移到 LEGACY_GUILD_ID
+//（未設定時，若機器人只在一個伺服器就用那一個）。
+// 無法判斷時先暫存在 "_legacy" 底下，資料不會遺失，設定好之後重啟即可遷移。
+const LEGACY_KEY = "_legacy";
+
+function getLegacyGuildId() {
+  if (process.env.LEGACY_GUILD_ID) return process.env.LEGACY_GUILD_ID.trim();
+  if (client.guilds.cache.size === 1) return client.guilds.cache.firstKey();
+  return null;
+}
+
+// isOldEntry(value)：判斷最外層的某個值是不是「舊格式的使用者資料」
+function migrateToGuildScoped(path, data, isOldEntry) {
+  const oldKeys = Object.keys(data).filter(
+    (k) => k !== LEGACY_KEY && isOldEntry(data[k]),
+  );
+  if (oldKeys.length === 0 && !data[LEGACY_KEY]) return data;
+
+  const legacy = { ...(data[LEGACY_KEY] || {}) };
+  for (const k of oldKeys) legacy[k] = data[k];
+
+  const result = {};
+  for (const [k, v] of Object.entries(data)) {
+    if (k !== LEGACY_KEY && !oldKeys.includes(k)) result[k] = v;
+  }
+
+  const guildId = getLegacyGuildId();
+  if (guildId) {
+    result[guildId] = { ...legacy, ...(result[guildId] || {}) };
+    console.log(`📦 ${path}：已將舊資料遷移到伺服器 ${guildId}`);
+  } else {
+    result[LEGACY_KEY] = legacy;
+    console.warn(
+      `⚠️ ${path}：有舊格式資料，但無法判斷屬於哪個伺服器，` +
+        `請設定 LEGACY_GUILD_ID 後重啟（資料暫存在 ${LEGACY_KEY}）`,
+    );
+  }
+  if (oldKeys.length > 0) saveJson(`${path}.bak`, data);
+  saveJson(path, result);
+  return result;
+}
+
+function guildBucket(data, guildId) {
+  if (!data[guildId]) data[guildId] = {};
+  return data[guildId];
+}
+
+function loadWarnings() {
+  warningsData = migrateToGuildScoped(
+    FILES.warnings,
+    loadJson(FILES.warnings),
+    (v) => v && Array.isArray(v.warnings),
+  );
+}
 function loadMarriages() {
-  marriageData = loadJson("./marriages.json");
+  marriageData = migrateToGuildScoped(
+    FILES.marriages,
+    loadJson(FILES.marriages),
+    (v) => v && (Array.isArray(v) || v.spouse),
+  );
   // 舊格式（一夫一妻）→ 新格式（配偶陣列）遷移
-  for (const uid of Object.keys(marriageData)) {
-    const v = marriageData[uid];
-    if (v && !Array.isArray(v)) {
-      marriageData[uid] = [v];
+  for (const users of Object.values(marriageData)) {
+    for (const uid of Object.keys(users)) {
+      const v = users[uid];
+      if (v && !Array.isArray(v)) users[uid] = [v];
     }
   }
 }
-const loadProposals = () => (proposalData = loadJson("./proposals.json"));
-const loadDivorces = () => (divorceData = loadJson("./divorces.json"));
-const loadMutedMembers = () =>
-  (mutedMembers = loadJson("./muted_members.json"));
+const loadProposals = () => (proposalData = loadJson(FILES.proposals));
+const loadDivorces = () => (divorceData = loadJson(FILES.divorces));
+function loadMutedMembers() {
+  const raw = loadJson(FILES.muted);
+  // 舊版禁言資料每筆都有記錄 guildId，可以直接歸到對應伺服器
+  const oldKeys = Object.keys(raw).filter((k) => raw[k]?.unmuteTime);
+  if (oldKeys.length === 0) {
+    mutedMembers = raw;
+    return;
+  }
+  mutedMembers = {};
+  for (const [k, v] of Object.entries(raw)) {
+    if (oldKeys.includes(k)) guildBucket(mutedMembers, v.guildId)[k] = v;
+    else mutedMembers[k] = { ...(mutedMembers[k] || {}), ...v };
+  }
+  saveJson(`${FILES.muted}.bak`, raw);
+  saveMutedMembers();
+  console.log(`📦 ${FILES.muted}：已依伺服器分開存放`);
+}
 const loadExpeditionMembers = () =>
-  (expeditionMembers = loadJson("./expedition_members.json"));
+  (expeditionMembers = loadJson(FILES.expedition));
 
-const saveWarnings = () => saveJson("./warnings.json", warningsData);
-const saveMarriages = () => saveJson("./marriages.json", marriageData);
-const saveProposals = () => saveJson("./proposals.json", proposalData);
-const saveDivorces = () => saveJson("./divorces.json", divorceData);
-const saveMutedMembers = () => saveJson("./muted_members.json", mutedMembers);
+const saveWarnings = () => saveJson(FILES.warnings, warningsData);
+const saveMarriages = () => saveJson(FILES.marriages, marriageData);
+const saveProposals = () => saveJson(FILES.proposals, proposalData);
+const saveDivorces = () => saveJson(FILES.divorces, divorceData);
+const saveMutedMembers = () => saveJson(FILES.muted, mutedMembers);
 const saveExpeditionMembers = () =>
-  saveJson("./expedition_members.json", expeditionMembers);
+  saveJson(FILES.expedition, expeditionMembers);
 
 // ============================================================================
 // [MEMBER MANAGEMENT] 一般輔助
 // ============================================================================
 function isAdmin(member) {
   return (
-    (config.adminRoleId && member.roles.cache.has(config.adminRoleId)) ||
+    config.adminRoleIds.some((id) => member.roles.cache.has(id)) ||
     member.permissions.has(PermissionFlagsBits.Administrator)
   );
 }
 
-const getSpouses = (userId) =>
-  Array.isArray(marriageData[userId]) ? marriageData[userId] : [];
-const isMarriedTo = (a, b) => getSpouses(a).some((m) => m.spouse === b);
+const getSpouses = (guildId, userId) => {
+  const list = marriageData[guildId]?.[userId];
+  return Array.isArray(list) ? list : [];
+};
+const isMarriedTo = (guildId, a, b) =>
+  getSpouses(guildId, a).some((m) => m.spouse === b);
 
-function createMarriage(u1, u2) {
-  if (isMarriedTo(u1, u2)) return; // 冪等：不重複建立同一對婚姻
+function createMarriage(guildId, u1, u2) {
+  if (isMarriedTo(guildId, u1, u2)) return; // 冪等：不重複建立同一對婚姻
   const marriageDate = new Date().toISOString();
-  if (!Array.isArray(marriageData[u1])) marriageData[u1] = [];
-  if (!Array.isArray(marriageData[u2])) marriageData[u2] = [];
-  marriageData[u1].push({ spouse: u2, marriageDate });
-  marriageData[u2].push({ spouse: u1, marriageDate });
+  const users = guildBucket(marriageData, guildId);
+  if (!Array.isArray(users[u1])) users[u1] = [];
+  if (!Array.isArray(users[u2])) users[u2] = [];
+  users[u1].push({ spouse: u2, marriageDate });
+  users[u2].push({ spouse: u1, marriageDate });
   saveMarriages();
 }
 
-function deleteMarriage(u1, u2) {
-  if (Array.isArray(marriageData[u1])) {
-    marriageData[u1] = marriageData[u1].filter((m) => m.spouse !== u2);
-    if (marriageData[u1].length === 0) delete marriageData[u1];
+function deleteMarriage(guildId, u1, u2) {
+  const users = marriageData[guildId];
+  if (!users) return;
+  if (Array.isArray(users[u1])) {
+    users[u1] = users[u1].filter((m) => m.spouse !== u2);
+    if (users[u1].length === 0) delete users[u1];
   }
-  if (Array.isArray(marriageData[u2])) {
-    marriageData[u2] = marriageData[u2].filter((m) => m.spouse !== u1);
-    if (marriageData[u2].length === 0) delete marriageData[u2];
+  if (Array.isArray(users[u2])) {
+    users[u2] = users[u2].filter((m) => m.spouse !== u1);
+    if (users[u2].length === 0) delete users[u2];
   }
+  if (Object.keys(users).length === 0) delete marriageData[guildId];
   saveMarriages();
 }
 
-function getUserWarnings(userId) {
-  if (!warningsData[userId]) {
-    warningsData[userId] = { count: 0, warnings: [], lastWarning: null };
+function getUserWarnings(guildId, userId) {
+  const users = guildBucket(warningsData, guildId);
+  if (!users[userId]) {
+    users[userId] = { count: 0, warnings: [], lastWarning: null };
   }
-  return warningsData[userId];
+  return users[userId];
 }
 
 function cleanExpiredProposals() {
@@ -194,42 +291,46 @@ function cleanExpiredDivorces() {
 
 async function checkMutedMembers() {
   const now = Date.now();
-  for (const userId in mutedMembers) {
-    const muteData = mutedMembers[userId];
-    if (now < muteData.unmuteTime) continue;
-    try {
-      const guild = client.guilds.cache.get(muteData.guildId);
-      if (guild) {
-        const member = await guild.members.fetch(userId).catch(() => null);
-        if (member && !member.isCommunicationDisabled()) {
-          try {
-            const dmEmbed = new EmbedBuilder()
-              .setColor("#32CD32")
-              .setTitle("🔊 禁言時間已到期")
-              .setDescription(`你在 **${guild.name}** 的禁言時間已結束`)
-              .addFields(
-                { name: "原禁言原因", value: muteData.reason },
-                { name: "禁言時長", value: `${muteData.duration}分鐘` },
-                {
-                  name: "解除時間",
-                  value: new Date().toLocaleString("zh-TW"),
-                },
-              )
-              .setFooter({ text: "歡迎回來！請繼續遵守伺服器規則～" });
-            await member.user.send({ embeds: [dmEmbed] });
-          } catch {}
+  for (const guildId in mutedMembers) {
+    const users = mutedMembers[guildId];
+    for (const userId in users) {
+      const muteData = users[userId];
+      if (now < muteData.unmuteTime) continue;
+      try {
+        const guild = client.guilds.cache.get(guildId);
+        if (guild) {
+          const member = await guild.members.fetch(userId).catch(() => null);
+          if (member && !member.isCommunicationDisabled()) {
+            try {
+              const dmEmbed = new EmbedBuilder()
+                .setColor("#32CD32")
+                .setTitle("🔊 禁言時間已到期")
+                .setDescription(`你在 **${guild.name}** 的禁言時間已結束`)
+                .addFields(
+                  { name: "原禁言原因", value: muteData.reason },
+                  { name: "禁言時長", value: `${muteData.duration}分鐘` },
+                  {
+                    name: "解除時間",
+                    value: new Date().toLocaleString("zh-TW"),
+                  },
+                )
+                .setFooter({ text: "歡迎回來！請繼續遵守伺服器規則～" });
+              await member.user.send({ embeds: [dmEmbed] });
+            } catch {}
+          }
         }
+      } catch (error) {
+        console.error(`檢查禁言到期 ${userId} 失敗:`, error.message);
       }
-    } catch (error) {
-      console.error(`檢查禁言到期 ${userId} 失敗:`, error.message);
+      delete users[userId];
     }
-    delete mutedMembers[userId];
+    if (Object.keys(users).length === 0) delete mutedMembers[guildId];
   }
   saveMutedMembers();
 }
 
 async function addWarning(user, moderator, reason, guild) {
-  const userData = getUserWarnings(user.id);
+  const userData = getUserWarnings(guild.id, user.id);
   const warning = {
     id: Date.now(),
     reason,
@@ -285,7 +386,7 @@ async function checkAutoActions(user, guild, count) {
 
 // ============================================================================
 // [EXPEDITION] 動態遠征頻道
-//   點王 → 輸入時間 → 管理員審核 → 建立頻道 → 週四整批刪除
+//   點王 → 輸入時間 → 建立頻道 → 週四整批刪除
 // ============================================================================
 
 // 找出（或建立）遠征報名分類
@@ -881,7 +982,7 @@ async function handleExpeditionPanel(interaction) {
   const embed = new EmbedBuilder()
     .setTitle("🗡️ 建立遠征隊")
     .setDescription(
-      "點選要打的王，填寫時間後送出申請。\n管理員同意後，就會自動開一個報名頻道。",
+      "點選要打的王，填寫時間後送出，就會自動開一個報名頻道。",
     )
     .setColor(0x5865f2);
   await interaction.reply({ embeds: [embed], components: rows });
@@ -915,7 +1016,7 @@ async function handleExpeditionBossButton(interaction, bossId) {
   await interaction.showModal(modal);
 }
 
-// 送出時間 → 產生一則審核申請（含 同意 / 拒絕 按鈕）
+// 送出時間 → 直接開報名頻道
 async function handleExpeditionTimeModal(interaction, bossId) {
   const boss = BOSSES.find((b) => b.id === bossId);
   if (!boss) return;
@@ -928,82 +1029,24 @@ async function handleExpeditionTimeModal(interaction, bossId) {
     await interaction.reply({ content: valid.error, flags: 64 });
     return;
   }
-  const time = valid.time;
-  const creatorId = interaction.user.id;
 
-  const embed = new EmbedBuilder()
-    .setTitle("📋 遠征隊申請（待管理員審核）")
-    .setColor(0xfaa61a)
-    .addFields(
-      { name: "王", value: `${boss.emoji} ${boss.name}`, inline: true },
-      { name: "日期", value: date, inline: true },
-      { name: "時間", value: time, inline: true },
-      { name: "申請人", value: `<@${creatorId}>` },
-    );
-  const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId(`exp_ok~${bossId}~${date}~${time}~${creatorId}`)
-      .setLabel("✅ 同意")
-      .setStyle(ButtonStyle.Success),
-    new ButtonBuilder()
-      .setCustomId(`exp_no~${bossId}`)
-      .setLabel("❌ 拒絕")
-      .setStyle(ButtonStyle.Danger),
-  );
-  await interaction.reply({ embeds: [embed], components: [row] });
-}
-
-// 管理員按 同意 / 拒絕
-async function handleExpeditionApproval(interaction, customId) {
-  if (!isAdmin(interaction.member)) {
-    await interaction.reply({
-      content: "❌ 只有管理員可以審核遠征申請。",
-      flags: 64,
-    });
-    return;
-  }
-
-  if (customId.startsWith("exp_no~")) {
-    await interaction.update({
-      content: `❌ 已由 <@${interaction.user.id}> 拒絕此遠征申請。`,
-      embeds: [],
-      components: [],
-    });
-    // 30 秒後自動刪除審核結果訊息
-    setTimeout(() => interaction.message.delete().catch(() => {}), 30 * 1000);
-    return;
-  }
-
-  // exp_ok~bossId~date~time~creatorId
-  const [, bossId, date, time, creatorId] = customId.split("~");
-  const boss = BOSSES.find((b) => b.id === bossId);
-  if (!boss) {
-    await interaction.reply({ content: "❌ 找不到對應的王。", flags: 64 });
-    return;
-  }
-
+  await interaction.deferReply({ flags: 64 });
   try {
     const channel = await createExpeditionChannel(
       interaction.guild,
       boss,
       date,
-      time,
-      creatorId,
+      valid.time,
+      interaction.user.id,
     );
-    await interaction.update({
-      content: `✅ 已由 <@${interaction.user.id}> 核准，已建立報名頻道：${channel}`,
-      embeds: [],
-      components: [],
-    });
-    // 30 秒後自動刪除審核結果訊息
-    setTimeout(() => interaction.message.delete().catch(() => {}), 30 * 1000);
+    await interaction.editReply(`✅ 已建立報名頻道：${channel}`);
   } catch (err) {
     console.error("建立遠征頻道失敗:", err);
     const msg =
       err.code === 50013
         ? "❌ 我沒有「管理頻道」權限，無法建立頻道。請幫我補上該權限後再試。"
         : "❌ 建立頻道時發生錯誤，請查看後台 log。";
-    await interaction.reply({ content: msg, flags: 64 });
+    await interaction.editReply(msg);
   }
 }
 
@@ -1572,7 +1615,7 @@ async function handleWarnCommand(interaction) {
     reason,
     interaction.guild,
   );
-  const userData = getUserWarnings(user.id);
+  const userData = getUserWarnings(interaction.guild.id, user.id);
   const embed = new EmbedBuilder()
     .setColor("#FF6B6B")
     .setTitle("⚠️ 成員已被警告")
@@ -1589,7 +1632,7 @@ async function handleWarnCommand(interaction) {
 
 async function handleCheckWarnCommand(interaction) {
   const user = interaction.options.getUser("user");
-  const userData = getUserWarnings(user.id);
+  const userData = getUserWarnings(interaction.guild.id, user.id);
   if (userData.count === 0) {
     await interaction.reply({
       content: `📋 ${user.tag} 沒有任何警告紀錄。`,
@@ -1623,7 +1666,7 @@ async function handleCheckWarnCommand(interaction) {
 async function handleDeleteWarnCommand(interaction) {
   const user = interaction.options.getUser("user");
   const warningId = interaction.options.getInteger("warn_id");
-  const userData = getUserWarnings(user.id);
+  const userData = getUserWarnings(interaction.guild.id, user.id);
   const idx = userData.warnings.findIndex((w) => w.id === warningId);
   if (idx === -1) {
     await interaction.reply({
@@ -1643,7 +1686,7 @@ async function handleDeleteWarnCommand(interaction) {
 
 async function handleClearAllWarnCommand(interaction) {
   const user = interaction.options.getUser("user");
-  const userData = getUserWarnings(user.id);
+  const userData = getUserWarnings(interaction.guild.id, user.id);
   if (userData.count === 0) {
     await interaction.reply({
       content: `📋 ${user.tag} 沒有任何警告紀錄需要清除。`,
@@ -1652,7 +1695,7 @@ async function handleClearAllWarnCommand(interaction) {
     return;
   }
   const originalCount = userData.count;
-  delete warningsData[user.id];
+  delete warningsData[interaction.guild.id][user.id];
   saveWarnings();
   await interaction.reply({
     content: `✅ 已清除 ${user.tag} 的所有警告紀錄！（共 ${originalCount} 條）`,
@@ -1744,7 +1787,7 @@ async function handleMuteCommand(interaction) {
   }
   try {
     const timeoutDuration = duration * 60 * 1000;
-    mutedMembers[user.id] = {
+    guildBucket(mutedMembers, interaction.guild.id)[user.id] = {
       guildId: interaction.guild.id,
       reason,
       duration,
@@ -1788,8 +1831,8 @@ async function handleUnmuteCommand(interaction) {
   }
   try {
     await member.timeout(null);
-    if (mutedMembers[user.id]) {
-      delete mutedMembers[user.id];
+    if (mutedMembers[interaction.guild.id]?.[user.id]) {
+      delete mutedMembers[interaction.guild.id][user.id];
       saveMutedMembers();
     }
     const embed = new EmbedBuilder()
@@ -1820,7 +1863,7 @@ async function handleProposeCommand(interaction) {
     });
     return;
   }
-  if (isMarriedTo(proposer.id, target.id)) {
+  if (isMarriedTo(interaction.guild.id, proposer.id, target.id)) {
     await interaction.reply({
       content: "❌ 你們已經是夫妻了！",
       flags: 64,
@@ -1860,7 +1903,7 @@ async function handleProposeCommand(interaction) {
 
 async function handleMarriageCommand(interaction) {
   const targetUser = interaction.options.getUser("user") || interaction.user;
-  const spouses = getSpouses(targetUser.id);
+  const spouses = getSpouses(interaction.guild.id, targetUser.id);
   if (spouses.length === 0) {
     const embed = new EmbedBuilder()
       .setColor("#808080")
@@ -1893,7 +1936,7 @@ async function handleMarriageCommand(interaction) {
 async function handleDivorceCommand(interaction) {
   const user = interaction.user;
   const target = interaction.options.getUser("user");
-  if (!isMarriedTo(user.id, target.id)) {
+  if (!isMarriedTo(interaction.guild.id, user.id, target.id)) {
     await interaction.reply({
       content: `❌ 你和 ${target} 沒有婚姻關係！`,
       flags: 64,
@@ -1940,8 +1983,12 @@ async function handleProposalButtons(interaction, customId) {
     return;
   }
   if (action === "accept") {
-    const alreadyMarried = isMarriedTo(proposal.proposer, proposal.target);
-    createMarriage(proposal.proposer, proposal.target);
+    const alreadyMarried = isMarriedTo(
+      proposal.guildId,
+      proposal.proposer,
+      proposal.target,
+    );
+    createMarriage(proposal.guildId, proposal.proposer, proposal.target);
     delete proposalData[proposalId];
     saveProposals();
     await interaction.update({
@@ -1980,7 +2027,7 @@ async function handleDivorceButtons(interaction, customId) {
     return;
   }
   if (action === "accept") {
-    deleteMarriage(divorce.applicant, divorce.spouse);
+    deleteMarriage(divorce.guildId, divorce.applicant, divorce.spouse);
     delete divorceData[divorceId];
     saveDivorces();
     await interaction.update({
@@ -2250,11 +2297,6 @@ client.on("interactionCreate", async (interaction) => {
           interaction,
           customId.replace("expedition_boss_", ""),
         );
-        return;
-      }
-      // 遠征：管理員審核按鈕
-      if (customId.startsWith("exp_ok~") || customId.startsWith("exp_no~")) {
-        await handleExpeditionApproval(interaction, customId);
         return;
       }
       // 遠征：更改時間按鈕 → 跳出輸入新時間視窗
