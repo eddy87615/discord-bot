@@ -72,6 +72,9 @@ const BOSSES = [
 
 // 動態遠征頻道統一歸在這個分類底下
 const EXPEDITION_CATEGORY = "🐲遠征報名區";
+// 指定使用既有分類的伺服器：列出分類 ID，各伺服器只會找到屬於自己的那個。
+// 沒列到的伺服器照舊用上面的分類名稱尋找（找不到就自動建立）
+const EXPEDITION_CATEGORY_IDS = ["1488884539194343535"];
 // 「遠征結束了嗎？」提示訊息的識別字串（用來避免重複詢問）
 const END_PROMPT_MARKER = "🏁 遠征時間已到";
 // 遠征時間以固定時區解讀，不依賴容器時區。台灣=8，日本=9
@@ -386,15 +389,35 @@ async function checkAutoActions(user, guild, count) {
 
 // ============================================================================
 // [EXPEDITION] 動態遠征頻道
-//   點王 → 輸入時間 → 建立頻道 → 週四整批刪除
+//   點王 → 輸入時間 → 建立頻道 → 團長或管理員「結束遠征」時刪除
 // ============================================================================
 
-// 找出（或建立）遠征報名分類
-async function getOrCreateExpeditionCategory(guild) {
-  let category = guild.channels.cache.find(
+// 找出這個伺服器的遠征報名分類：先找指定的分類 ID，再用名稱找
+function findExpeditionCategory(guild) {
+  for (const id of EXPEDITION_CATEGORY_IDS) {
+    const c = guild.channels.cache.get(id);
+    if (c?.type === ChannelType.GuildCategory) return c;
+  }
+  return guild.channels.cache.find(
     (c) =>
       c.type === ChannelType.GuildCategory && c.name === EXPEDITION_CATEGORY,
   );
+}
+
+// 是否為遠征報名頻道：在遠征分類底下，且名稱是 MMDD-HHMM- 開頭
+//（既有分類裡可能有其他頻道，只看分類會誤判）
+function isExpeditionChannel(channel) {
+  const category = findExpeditionCategory(channel.guild);
+  return (
+    !!category &&
+    channel.parentId === category.id &&
+    !!parseExpeditionDateTime(channel.name)
+  );
+}
+
+// 找出（或建立）遠征報名分類
+async function getOrCreateExpeditionCategory(guild) {
+  let category = findExpeditionCategory(guild);
   if (!category) {
     category = await guild.channels.create({
       name: EXPEDITION_CATEGORY,
@@ -488,10 +511,7 @@ function parseExpeditionDateTime(name) {
 
 // 把遠征分類底下的頻道，依遠征日期時間「由早到晚（升冪）」重新排序
 async function sortExpeditionChannels(guild) {
-  const category = guild.channels.cache.find(
-    (c) =>
-      c.type === ChannelType.GuildCategory && c.name === EXPEDITION_CATEGORY,
-  );
+  const category = findExpeditionCategory(guild);
   if (!category) return;
   const channels = [
     ...guild.channels.cache
@@ -501,13 +521,14 @@ async function sortExpeditionChannels(guild) {
       .values(),
   ];
   if (channels.length < 2) return;
-  // 依解析出的遠征時間升冪；無法解析日期的頻道排到最後、維持原本相對順序
+  // 分類裡原有的其他頻道（名稱無法解析日期）維持原本順序放在最上面，
+  // 遠征頻道依遠征時間升冪排在後面
   channels.sort((a, b) => {
     const da = parseExpeditionDateTime(a.name);
     const db = parseExpeditionDateTime(b.name);
     if (!da && !db) return a.position - b.position;
-    if (!da) return 1;
-    if (!db) return -1;
+    if (!da) return -1;
+    if (!db) return 1;
     return da - db;
   });
   // 目前位置已經是升冪就不用打 API（避免每次都送請求）
@@ -592,7 +613,7 @@ async function handleEndConfirmNo(interaction) {
 // /結束遠征 指令：限遠征頻道內、且為團長或管理員
 async function handleEndExpeditionCommand(interaction) {
   const channel = interaction.channel;
-  if (!channel.parent || channel.parent.name !== EXPEDITION_CATEGORY) {
+  if (!isExpeditionChannel(channel)) {
     await interaction.reply({
       content: "❌ 這個指令只能在遠征報名頻道裡使用。",
       flags: 64,
@@ -606,7 +627,7 @@ async function handleEndExpeditionCommand(interaction) {
 // 按「🕐 更改時間」按鈕 / 用 /更改時間 指令 → 限團長本人或管理員，跳出輸入新時間的視窗
 async function handleEditExpeditionButton(interaction, leaderId) {
   const channel = interaction.channel;
-  if (!channel.parent || channel.parent.name !== EXPEDITION_CATEGORY) {
+  if (!isExpeditionChannel(channel)) {
     await interaction.reply({
       content: "❌ 這個功能只能在遠征報名頻道裡使用。",
       flags: 64,
@@ -656,7 +677,7 @@ async function handleEditExpeditionButton(interaction, leaderId) {
 // 送出新時間 → 改頻道名稱 / 主題 / 置頂範本，並清掉舊的「遠征結束了嗎？」提示
 async function handleExpeditionEditTimeModal(interaction) {
   const channel = interaction.channel;
-  if (!channel.parent || channel.parent.name !== EXPEDITION_CATEGORY) {
+  if (!isExpeditionChannel(channel)) {
     await interaction.reply({
       content: "❌ 這個功能只能在遠征報名頻道裡使用。",
       flags: 64,
@@ -788,7 +809,7 @@ async function postExpeditionRoster(channel, data) {
 // 按「✅ 確認團員」→ 限團長本人或管理員，跳出成員選擇選單（最多 12 人）
 async function handleConfirmMembersButton(interaction, leaderId) {
   const channel = interaction.channel;
-  if (!channel.parent || channel.parent.name !== EXPEDITION_CATEGORY) {
+  if (!isExpeditionChannel(channel)) {
     await interaction.reply({
       content: "❌ 這個功能只能在遠征報名頻道裡使用。",
       flags: 64,
@@ -826,7 +847,7 @@ async function handleConfirmMembersButton(interaction, leaderId) {
 // 選好團員送出 → 存檔並更新公開名單
 async function handleConfirmMembersSelect(interaction) {
   const channel = interaction.channel;
-  if (!channel.parent || channel.parent.name !== EXPEDITION_CATEGORY) {
+  if (!isExpeditionChannel(channel)) {
     await interaction.reply({
       content: "❌ 這個功能只能在遠征報名頻道裡使用。",
       flags: 64,
@@ -916,10 +937,7 @@ async function maybeSendInactivityReminder(channel, now) {
 async function scanExpeditions() {
   const now = new Date();
   for (const guild of client.guilds.cache.values()) {
-    const category = guild.channels.cache.find(
-      (c) =>
-        c.type === ChannelType.GuildCategory && c.name === EXPEDITION_CATEGORY,
-    );
+    const category = findExpeditionCategory(guild);
     if (!category) continue;
     // 自我修復：確保頻道依日期升冪排列（順序已正確時不會打 API）
     await sortExpeditionChannels(guild).catch(() => {});
