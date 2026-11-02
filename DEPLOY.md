@@ -143,6 +143,7 @@ docker compose logs -f
 |------|------|
 | `/propose` `/marriage` `/divorce` | 求婚 / 查看婚姻 / 離婚 |
 | `/pin` | 設定此頻道的置底訊息 |
+| `/unpin` | 取消此頻道的置底訊息（直接刪掉置底訊息也會取消） |
 
 ---
 

@@ -81,6 +81,11 @@ const END_PROMPT_MARKER = "🏁 遠征時間已到";
 const EXPEDITION_TZ_OFFSET = 8;
 const pinnedMessageMap = {};
 
+async function deleteMessageById(channel, messageId) {
+  const msg = await channel.messages.fetch(messageId).catch(() => null);
+  if (msg) await msg.delete().catch(() => {});
+}
+
 // ============================================================================
 // [MEMBER MANAGEMENT] 狀態 & JSON 持久化
 // ============================================================================
@@ -1555,7 +1560,8 @@ async function handleHelpCommand(interaction) {
           "`/確認團員` - 選擇最多 12 位團員，前一天自動 tag 提醒（也可用置頂訊息的按鈕）\n" +
           "`/更改時間` - 更改目前遠征頻道的時間（團長／管理員）\n" +
           "`/結束遠征` - 結束並刪除目前遠征頻道（團長／管理員）\n" +
-          "`/pin` - 設定此頻道的置底訊息",
+          "`/pin` - 設定此頻道的置底訊息\n" +
+          "`/unpin` - 取消此頻道的置底訊息（直接刪掉置底訊息也會取消）",
       },
       {
         name: "🎮 娛樂小遊戲",
@@ -2085,6 +2091,9 @@ const commands = [
       o.setName("content").setDescription("置底訊息內容").setRequired(true),
     ),
   new SlashCommandBuilder()
+    .setName("unpin")
+    .setDescription("取消此頻道的置底訊息"),
+  new SlashCommandBuilder()
     .setName("遠征面板")
     .setDescription("發送建立遠征隊的面板（管理員）"),
   new SlashCommandBuilder()
@@ -2381,18 +2390,32 @@ client.on("interactionCreate", async (interaction) => {
     if (commandName === "pin") {
       const content = interaction.options.getString("content");
       const channel = interaction.channel;
-      if (pinnedMessageMap[channel.id]) {
-        const old = await channel.messages
-          .fetch(pinnedMessageMap[channel.id].messageId)
-          .catch(() => null);
-        if (old) await old.delete().catch(() => {});
-      }
+      const oldId = pinnedMessageMap[channel.id]?.messageId;
       const sent = await channel.send(content);
       pinnedMessageMap[channel.id] = { messageId: sent.id, content };
+      // 先記下新訊息再刪舊的，messageDelete 才不會誤判成手動刪除
+      if (oldId) await deleteMessageById(channel, oldId);
       await interaction.reply({
         content: "✅ 置底訊息已設定",
         ephemeral: true,
       });
+      return;
+    }
+
+    // /unpin：取消置底訊息
+    if (commandName === "unpin") {
+      const channel = interaction.channel;
+      const pinned = pinnedMessageMap[channel.id];
+      if (!pinned) {
+        await interaction.reply({
+          content: "❌ 這個頻道沒有置底訊息。",
+          flags: 64,
+        });
+        return;
+      }
+      delete pinnedMessageMap[channel.id];
+      await deleteMessageById(channel, pinned.messageId);
+      await interaction.reply({ content: "✅ 已取消置底訊息", flags: 64 });
       return;
     }
 
@@ -2477,6 +2500,17 @@ client.on("interactionCreate", async (interaction) => {
 });
 
 // ============================================================================
+// messageDelete：有人手動刪掉目前的置底訊息 → 視同取消置底
+//（機器人自己換新置底時，會先更新 messageId 再刪舊訊息，所以不會觸發這裡）
+// ============================================================================
+client.on("messageDelete", (message) => {
+  const pinned = pinnedMessageMap[message.channelId];
+  if (pinned && pinned.messageId === message.id) {
+    delete pinnedMessageMap[message.channelId];
+  }
+});
+
+// ============================================================================
 // messageCreate：三個 handler 並存
 // ============================================================================
 client.on("messageCreate", async (message) => {
@@ -2486,12 +2520,11 @@ client.on("messageCreate", async (message) => {
   const pinned = pinnedMessageMap[message.channelId];
   if (pinned && message.id !== pinned.messageId) {
     try {
-      const old = await message.channel.messages
-        .fetch(pinned.messageId)
-        .catch(() => null);
-      if (old) await old.delete().catch(() => {});
+      const oldId = pinned.messageId;
       const sent = await message.channel.send(pinned.content);
-      pinnedMessageMap[message.channelId].messageId = sent.id;
+      pinned.messageId = sent.id;
+      // 先記下新訊息再刪舊的，messageDelete 才不會誤判成手動刪除
+      await deleteMessageById(message.channel, oldId);
     } catch (error) {
       console.log("置底訊息更新失敗:", error.message);
     }
