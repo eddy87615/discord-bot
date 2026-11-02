@@ -68,6 +68,7 @@ const BOSSES = [
   { id: "horntail", name: "闇黑龍王", emoji: "🐲" },
   { id: "ephenia", name: "艾畢奈雅", emoji: "🧚" },
   { id: "cresell", name: "克雷塞爾", emoji: "🌲" },
+  { id: "arkarium", name: "阿卡依農", emoji: "⌛" },
 ];
 
 // 動態遠征頻道統一歸在這個分類底下
@@ -1004,9 +1005,7 @@ async function handleExpeditionPanel(interaction) {
   }
   const embed = new EmbedBuilder()
     .setTitle("🗡️ 建立遠征隊")
-    .setDescription(
-      "點選要打的王，填寫時間後送出，就會自動開一個報名頻道。",
-    )
+    .setDescription("點選要打的王，填寫時間後送出，就會自動開一個報名頻道。")
     .setColor(0x5865f2);
   await interaction.reply({ embeds: [embed], components: rows });
 }
